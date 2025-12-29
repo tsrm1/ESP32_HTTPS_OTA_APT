@@ -1,0 +1,154 @@
+     
+        / * удалить */
+        <div class="section">
+          <button
+            class="btn"
+            style="background: #6c757d"
+            onclick="toggleSets()"
+          >
+            ⚙️ Настройка датчиков
+          </button>
+          <div
+            id="settings-panel"
+            class="section"
+            style="display: none; margin-top: 10px"
+          >
+            <div id="checks"></div>
+            <label style="display: block; margin: 8px 0; font-size: 13px"
+              ><input type="checkbox" id="relays_en" /> Переключатели (Block
+              Rele)</label
+            >
+            <button class="btn" onclick="saveChecks()" style="margin-top: 10px">
+              Применить
+            </button>
+          </div>
+        </div>
+        <div class="section">
+          <div id="sensor-accordion"></div>
+          <button
+            class="btn"
+            style="margin-top: 15px; background: #28a745"
+            onclick="saveChecks()"
+          >
+            Применить настройки
+          </button>
+        </div>
+      </div>
+      / * удалить */
+
+
+
+
+
+       // function renderAccordion(cfg) {
+      //   const container = document.getElementById("sensor-accordion");
+      //   container.innerHTML = "";
+      //   senNames.forEach((name, i) => {
+      //     const isRelay = i === 9;
+      //     const isDS = i === 6;
+      //     let html = `<details>
+      //         <summary><span style="flex:1">${name}</span>
+      //             <label class="switch" onclick="event.stopPropagation()">
+      //                 <input type="checkbox" id="en${i}" ${
+      //       (isRelay ? cfg.r_en : cfg.sen[i]) ? "checked" : ""
+      //     }>
+      //                 <span class="slider"></span>
+      //             </label>
+      //         </summary>
+      //         <div class="details-content">`;
+
+      //     if (isRelay) {
+      //       for (let r = 0; r < 4; r++)
+      //         html += `<div class="row"><label>GPIO Реле ${
+      //           r + 1
+      //         }</label><input type="number" id="rel_g${r}" value="${
+      //           cfg.rel_g[r]
+      //         }"></div>`;
+      //     } else if (isDS) {
+      //       html += `<div class="row"><label>GPIO Пин (Шина OneWire)</label><input type="number" id="sen_g6" value="${cfg.sen_g[6]}"></div>`;
+      //       html += `<button class="btn btn-search" onclick="scanDS()" style="background:#17a2b8">Search</button>`;
+      //       html += `<div id="ds-found-list">`;
+      //       cfg.ds_l.forEach((item) => {
+      //         html += `<div class="ds-item" data-mac="${item.m}"><span>Sensor <b>(${item.m})</b></span><input type="number" class="ds-u-idx" value="${item.i}"></div>`;
+      //       });
+      //       html += `</div>`;
+      //     } else if (i !== 2 && i !== 5) {
+      //       html += `<div class="row"><label>GPIO Пин</label><input type="number" id="sen_g${i}" value="${cfg.sen_g[i]}"></div>`;
+      //     } else {
+      //       html += `<div style="color:#999; font-size:12px">Автоматическое определение</div>`;
+      //     }
+      //     html += `</div></details>`;
+      //     container.innerHTML += html;
+      //   });
+      // }
+      // async function scan(type) {
+      //   const res = document.getElementById("res_" + type);
+      //   if (res) res.innerHTML = "Опрос шины...";
+      //   const pin = document.getElementById("p_ds")?.value || 0;
+      //   const r = await fetch(`${BASE_URL}/api/scan?type=${type}&pin=${pin}`);
+      //   const d = await r.json();
+      //   if (type === "ds18b20" && res) {
+      //     res.innerHTML = "";
+      //     d.forEach((s, i) => {
+      //       res.innerHTML += `<div class="row" style="font-size:12px"><span>#${
+      //         i + 1
+      //       } ${s.mac} | <b>${s.val}°C</b></span> <input type="number" value="${
+      //         i + 1
+      //       }" style="width:40px"></div>`;
+      //     });
+      //   }
+      // }
+      // const maps = [
+      //   ["card-dht-t", "card-dht-h"],
+      //   ["card-lux-5516"],
+      //   ["card-tcrt"],
+      //   ["card-pir"],
+      //   ["card-pres"],
+      //   ["card-bme-t", "card-bme-h", "card-bme-p"],
+      //   ["card-t1", "card-t2", "card-t3", "card-t4"],
+      //   ["card-door"],
+      //   ["card-flood"],
+      // ];
+      // function applyVis(senArray, relEn) {
+      //   senArray.forEach((en, i) => {
+      //     if (maps[i])
+      //       maps[i].forEach((id) => {
+      //         const el = document.getElementById(id);
+      //         if (el) el.style.display = en ? "block" : "none";
+      //       });
+      //   });
+      //   for (let i = 0; i < 4; i++) {
+      //     const el = document.getElementById("card-r" + i);
+      //     if (el) el.style.display = relEn ? "block" : "none";
+      //   }
+      // }
+
+// function saveChecks() {
+      //   const f = new FormData();
+      //   const sens = [];
+      //   const rEn = document.getElementById("relays_en").checked;
+      //   f.append("r_en", rEn);
+
+      //   // Сохраняем состояние чекбоксов для всех 9 типов датчиков
+      //   for (let i = 0; i < 9; i++) {
+      //     const en = document.getElementById("ch" + i).checked;
+      //     f.append("ch" + i, en);
+      //     sens.push(en);
+      //   }
+
+      //   // === НОВЫЙ БЛОК ДЛЯ DS18B20 ===
+      //   // Собираем данные обо всех найденных датчиках на шине
+      //   const dsItems = document.querySelectorAll(".ds-item");
+      //   dsItems.forEach((el, idx) => {
+      //     f.append(`dsm${idx}`, el.dataset.mac); // MAC-адрес датчика
+      //     f.append(`dsi${idx}`, el.querySelector(".ds-u-idx").value); // Индекс, введенный пользователем
+      //   });
+      //   f.append("dsc", dsItems.length); // Передаем общее количество найденных датчиков
+      //   // =============================
+
+      //   // applyVis(sens, rEn);
+      //   // fetch(`${BASE_URL}/api/set-sens`, { method: "POST", body: f }).then(
+      //   //   () => alert("Применено")
+      //   // );
+      // }
+      // buildSensorsMenu();

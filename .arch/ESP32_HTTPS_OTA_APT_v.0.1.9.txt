@@ -1,0 +1,922 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+#include <DNSServer.h>
+
+// --- Константы ---
+static const char* const CURRENT_VERSION = "0.1.9";
+const char* AP_SSID = "ESP32_Config_Node";
+const int RESET_PIN = 4; 
+const int LED_PIN = 2;
+
+enum ConnStatus { W_IDLE, W_CONNECTING, W_SUCCESS, W_FAIL };
+ConnStatus wifiConnStatus = W_IDLE;
+unsigned long apOffTime = 0;
+unsigned long lastLedToggle = 0;
+
+AsyncWebServer server(80);
+DNSServer dnsServer;
+
+struct Config {
+  char wifi_ssid[32] = "";
+  char wifi_pass[64] = "";
+  char www_user[32] = "admin";
+  char www_pass[32] = "admin";
+  bool tg_en = true;
+  char tg_token[64] = "";
+  long trusted_ids[6] = {0,0,0,0,0,0};
+  int ids_count = 1;
+  bool mqtt_en = true;
+  char mqtt_ip[32] = "";
+  int mqtt_port = 1883;
+  char mqtt_user[32] = "";
+  char mqtt_pass[32] = "";
+  char mqtt_topic[64] = "sensors/data";
+  int mqtt_interval = 60;
+  bool sensors_en[9] = {true,true,true,true,true,true,true,true,true};
+  bool relays_en = true; // Видимость панели реле
+} config;
+
+bool relay_states[4] = {false, false, false, false};
+
+// --- Файловая система ---
+
+void loadFiles() {
+  if (LittleFS.begin(true) && LittleFS.exists("/config.json")) {
+    File f = LittleFS.open("/config.json", "r");
+    StaticJsonDocument<2500> doc;
+    deserializeJson(doc, f);
+    strlcpy(config.wifi_ssid, doc["ssid"] | "", 32);
+    strlcpy(config.wifi_pass, doc["pass"] | "", 64);
+    strlcpy(config.www_user, doc["w_u"] | "admin", 32);
+    strlcpy(config.www_pass, doc["w_p"] | "admin", 32);
+    config.tg_en = doc["tg_en"] | true;
+    strlcpy(config.tg_token, doc["tg"] | "", 64);
+    config.ids_count = doc["ids_c"] | 1;
+    for(int i=0; i<6; i++) config.trusted_ids[i] = doc["ids"][i] | 0;
+    config.mqtt_en = doc["m_en"] | true;
+    strlcpy(config.mqtt_ip, doc["m_ip"] | "", 32);
+    config.mqtt_port = doc["m_port"] | 1883;
+    strlcpy(config.mqtt_user, doc["m_u"] | "", 32);
+    strlcpy(config.mqtt_pass, doc["m_p"] | "", 32);
+    strlcpy(config.mqtt_topic, doc["m_t"] | "sensors/data", 64);
+    config.mqtt_interval = doc["m_i"] | 60;
+    for(int i=0; i<9; i++) config.sensors_en[i] = doc["sen"][i] | true;
+    config.relays_en = doc["r_en"] | true;
+    f.close();
+  }
+}
+
+void loadRelays() {
+  if (LittleFS.exists("/relays.json")) {
+    File f = LittleFS.open("/relays.json", "r");
+    StaticJsonDocument<256> doc;
+    deserializeJson(doc, f);
+    for(int i=0; i<4; i++) relay_states[i] = doc["r"][i] | false;
+    f.close();
+  }
+}
+
+void saveRelays() {
+  StaticJsonDocument<256> doc;
+  JsonArray r = doc.createNestedArray("r");
+  for(int i=0; i<4; i++) r.add(relay_states[i]);
+  File f = LittleFS.open("/relays.json", "w");
+  serializeJson(doc, f); f.close();
+}
+
+void saveMainConfig() {
+  StaticJsonDocument<2500> doc;
+  doc["ssid"] = config.wifi_ssid; doc["pass"] = config.wifi_pass;
+  doc["w_u"] = config.www_user; doc["w_p"] = config.www_pass;
+  doc["tg_en"] = config.tg_en; doc["tg"] = config.tg_token; doc["ids_c"] = config.ids_count;
+  JsonArray ids = doc.createNestedArray("ids");
+  for(int i=0; i<6; i++) ids.add(config.trusted_ids[i]);
+  doc["m_en"] = config.mqtt_en; doc["m_ip"] = config.mqtt_ip; doc["m_port"] = config.mqtt_port;
+  doc["m_u"] = config.mqtt_user; doc["m_p"] = config.mqtt_pass;
+  doc["m_t"] = config.mqtt_topic; doc["m_i"] = config.mqtt_interval;
+  JsonArray sen = doc.createNestedArray("sen");
+  for(int i=0; i<9; i++) sen.add(config.sensors_en[i]);
+  doc["r_en"] = config.relays_en;
+  File f = LittleFS.open("/config.json", "w");
+  serializeJson(doc, f); f.close();
+}
+
+// --- HTML Интерфейс ---
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
+    .nav { display: flex; background: #fff; position: sticky; top:0; z-index:100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab.active { border-bottom: 3px solid #007bff; color: #007bff; font-weight: bold; }
+    .container { padding: 10px; max-width: 600px; margin: auto; }
+    .page { display: none; } .page.active { display: block; }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+    .card { background: #fff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .card h4 { margin: 0 0 5px 0; font-size: 13px; color: #666; text-transform: uppercase; }
+    .card div { font-size: 22px; font-weight: bold; color: #007bff; }
+    .section { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    .row { display: flex; align-items: center; margin-bottom: 10px; position: relative; }
+    .row label { width: 110px; font-size: 13px; font-weight: 600; }
+    .btn { background: #007bff; color: #fff; border: none; padding: 12px; border-radius: 8px; width: 100%; cursor: pointer; font-size: 15px; font-weight: bold; }
+    .pass-wrapper { position: relative; flex: 1; display: flex; align-items: center; }
+    .pass-wrapper input { width: 100%; padding: 8px 35px 8px 8px; border: 1px solid #ddd; border-radius: 6px; }
+    .toggle-eye { position: absolute; right: 10px; cursor: pointer; color: #999; font-size: 18px; user-select: none; }
+    /* Стили для переключателей реле */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: #28a745; }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head><body>
+  <div class="nav">
+    <div class="tab active" onclick="openTab(event, 'tab-mon')">Monitor</div>
+    <div class="tab" onclick="openTab(event, 'tab-srv')">Services</div>
+    <div class="tab" onclick="openTab(event, 'tab-wifi')">Wi-Fi</div>
+  </div>
+  <div class="container">
+    <div id="tab-mon" class="page active">
+      <div class="card-grid">
+        <div class="card" id="card-in-t"><h4>Т.Внутр.</h4><div id="v_in_t">--</div></div>
+        <div class="card" id="card-in-h"><h4>Вл.Внутр.</h4><div id="v_in_h">--</div></div>
+        <div class="card" id="card-lux"><h4>Свет Вн.</h4><div id="v_lux">--</div></div>
+        <div class="card" id="card-lux-out"><h4>Свет Нар.</h4><div id="v_lux_out">--</div></div>
+        <div class="card" id="card-pir"><h4>Движение</h4><div id="v_pir">--</div></div>
+        <div class="card" id="card-pres"><h4>Присут.</h4><div id="v_pres">--</div></div>
+        <div class="card" id="card-out-t"><h4>Т.Наруж.</h4><div id="v_out_t">--</div></div>
+        <div class="card" id="card-out-h"><h4>Вл.Наруж.</h4><div id="v_out_h">--</div></div>
+        <div class="card" id="card-t1"><h4>Т1 Рад.</h4><div id="v_t1">--</div></div>
+        <div class="card" id="card-t2"><h4>Т2 Рад.</h4><div id="v_t2">--</div></div>
+        <div class="card" id="card-door"><h4>Дверь</h4><div id="v_door">--</div></div>
+        <div class="card" id="card-flood"><h4>Затоп.</h4><div id="v_flood">--</div></div>
+      </div>
+
+      <div id="relay-panel" class="section" style="display:none">
+        <h3 style="margin:0 0 15px 0; font-size:16px">Управление реле</h3>
+        <div class="card-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 1</span>
+              <label class="switch"><input type="checkbox" id="r0" onchange="setRelay(0)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 2</span>
+              <label class="switch"><input type="checkbox" id="r1" onchange="setRelay(1)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 3</span>
+              <label class="switch"><input type="checkbox" id="r2" onchange="setRelay(2)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 4</span>
+              <label class="switch"><input type="checkbox" id="r3" onchange="setRelay(3)"><span class="slider"></span></label>
+           </div>
+        </div>
+      </div>
+
+      <button class="btn" style="background:#6c757d" onclick="toggleSets()">⚙️ Настройка датчиков</button>
+      <div id="settings-panel" class="section" style="display:none; margin-top:10px">
+        <div id="checks"></div>
+        <label style="display:block; margin:8px 0; font-size:13px; color:#007bff; font-weight:bold">
+          <input type="checkbox" id="relays_en"> Панель управления реле
+        </label>
+        <button class="btn" onclick="saveChecks()" style="margin-top:10px">Применить</button>
+      </div>
+    </div>
+    <div id="tab-srv" class="page">
+        <div class="section">
+          <h3>Telegram <label style="font-size:12px; float:right">Activate <input type="checkbox" id="tg_en"></label></h3>
+          <div class="row"><label>Bot Token</label><input id="tg_token" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div id="ids-container"></div>
+          <button class="btn" style="background:#28a745; margin-bottom:10px; padding:8px" onclick="addUserId()">+ Add UserID</button>
+        </div>
+        <div class="section">
+          <h3>MQTT <label style="font-size:12px; float:right">Activate <input type="checkbox" id="mqtt_en"></label></h3>
+          <div class="row"><label>Broker IP</label><input id="m_ip" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Port</label><input id="m_port" type="number"></div>
+          <div class="row"><label>User</label><input id="m_u" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Pass</label><div class="pass-wrapper"><input id="m_p" type="password"><span class="toggle-eye" onclick="togglePass('m_p')">👁️</span></div></div>
+          <div class="row"><label>Topic</label><input id="m_t" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Interval (s)</label><input id="m_i" type="number"></div>
+        </div>
+        <div class="section">
+          <h3>Web Security</h3>
+          <div class="row"><label>Login</label><input id="w_u" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Password</label><div class="pass-wrapper"><input id="w_p" type="password"><span class="toggle-eye" onclick="togglePass('w_p')">👁️</span></div></div>
+        </div>
+        <button class="btn" onclick="saveSrv()">Сохранить настройки</button>
+      </div>
+      <div id="tab-wifi" class="page">
+        <div class="section">
+          <button class="btn" onclick="scan()">Поиск сетей</button>
+          <div id="nets" style="margin-top:10px; max-height:200px; overflow-y:auto"></div>
+          <div class="row" style="margin-top:15px"><label>SSID</label><input id="ssid" readonly style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Пароль</label><div class="pass-wrapper"><input id="w_pass" type="password"><span class="toggle-eye" onclick="togglePass('w_pass')">👁️</span></div></div>
+          <button class="btn" id="conn-btn" style="background:#28a745" onclick="conn()">Подключить</button>
+        </div>
+      </div>
+  </div>
+
+  <script>
+    let activeIds = 0;
+    const senNames = ["Внутренний воздух", "Внутреннее освещение", "Наружное освещение", "Движение", "Присутствие", "Наружный воздух", "Радиаторы", "Дверь", "Затопление"];
+    function openTab(e, n){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById(n).classList.add('active'); e.currentTarget.classList.add('active'); }
+    function toggleSets(){ const p=document.getElementById('settings-panel'); p.style.display=p.style.display==='block'?'none':'block'; }
+    function togglePass(id) { const el = document.getElementById(id); el.type = (el.type === "password") ? "text" : "password"; }
+    const chBox = document.getElementById('checks');
+    senNames.forEach((n, i) => { chBox.innerHTML += `<label style="display:block; margin:8px 0; font-size:13px"><input type="checkbox" id="ch${i}"> ${n}</label>`; });
+    function addUserId(val = "") { if(activeIds >= 6) return; const container = document.getElementById('ids-container'); const div = document.createElement('div'); div.className = 'row'; div.innerHTML = `<label>UserID ${activeIds+1}</label><input id="id${activeIds}" value="${val}" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;">`; container.appendChild(div); activeIds++; }
+    
+    function applyVis(senArray, relEn){ 
+      const maps = [['card-in-t','card-in-h'],['card-lux'],['card-lux-out'],['card-pir'],['card-pres'],['card-out-t','card-out-h'],['card-t1','card-t2'],['card-door'],['card-flood']]; 
+      senArray.forEach((en, i) => { if(maps[i]) maps[i].forEach(id => { const el=document.getElementById(id); if(el) el.style.display = en ? 'block' : 'none' })}); 
+      document.getElementById('relay-panel').style.display = relEn ? 'block' : 'none';
+    }
+
+    // Загрузка данных
+    fetch('/api/get-all').then(r=>r.json()).then(c=>{
+      document.getElementById('relays_en').checked=c.r_en;
+      document.getElementById('tg_en').checked=c.tg_en; document.getElementById('tg_token').value=c.tg;
+      document.getElementById('mqtt_en').checked=c.m_en; document.getElementById('m_ip').value=c.m_ip;
+      document.getElementById('m_port').value=c.m_port; document.getElementById('m_u').value=c.m_u;
+      document.getElementById('m_p').value=c.m_p; document.getElementById('m_t').value=c.m_t;
+      document.getElementById('m_i').value=c.m_i; document.getElementById('w_u').value=c.w_u; document.getElementById('w_p').value=c.w_p;
+      for(let i=0; i<c.ids_c; i++) addUserId(c.ids[i]); if(activeIds === 0) addUserId(""); 
+      for(let i=0; i<9; i++) { if(document.getElementById('ch'+i)) document.getElementById('ch'+i).checked=c.sen[i]; }
+      applyVis(c.sen, c.r_en);
+    });
+
+    fetch('/api/get-relays').then(r=>r.json()).then(d=>{ d.r.forEach((v,i)=>document.getElementById('r'+i).checked=v); });
+
+    setInterval(() => {
+      fetch('/api/values').then(r=>r.json()).then(v=>{
+        ['in_t','in_h','out_t','out_h','lux','lux_out','t1','t2'].forEach(f => { if(document.getElementById('v_'+f)) document.getElementById('v_'+f).innerText = v[f] });
+        const updateStatus = (id, val, tT, tF) => { const el=document.getElementById(id); if(!el) return; el.innerText=val?tT:tF; el.style.color=val?'red':'#007bff'; };
+        updateStatus('v_pir',v.pir,'ЕСТЬ','НЕТ'); updateStatus('v_pres',v.pres,'ЕСТЬ','НЕТ');
+        updateStatus('v_door',v.door,'ОТКР','ЗАКР'); updateStatus('v_flood',v.flood,'ЕСТЬ','НЕТ');
+      });
+    }, 2000);
+
+    function setRelay(idx){ const st=document.getElementById('r'+idx).checked; fetch(`/api/set-relay?id=${idx}&st=${st}`); }
+    function scan(){ const n=document.getElementById('nets'); n.innerHTML='Поиск...'; fetch('/api/scan').then(r=>r.json()).then(d=>{ n.innerHTML=''; d.forEach(x=>{ const i=document.createElement('div'); i.className='net-item'; i.innerText=x.ssid+" ("+x.rssi+"dBm)"; i.onclick=()=>{document.getElementById('ssid').value=x.ssid;}; n.appendChild(i);});});}
+    function conn(){ const f=new FormData(); f.append('s',document.getElementById('ssid').value); f.append('p',document.getElementById('w_pass').value); fetch('/api/wifi-connect',{method:'POST',body:f}).then(()=>alert('Connecting...')); }
+    function saveSrv(){
+      const f=new FormData(); f.append('tg_en', document.getElementById('tg_en').checked); f.append('tg', document.getElementById('tg_token').value); f.append('ids_c', activeIds);
+      for(let i=0; i<activeIds; i++) f.append('id'+i, document.getElementById('id'+i).value);
+      f.append('m_en', document.getElementById('mqtt_en').checked); f.append('m_ip', document.getElementById('m_ip').value);
+      f.append('m_port', document.getElementById('m_port').value); f.append('m_u', document.getElementById('m_u').value);
+      f.append('m_p', document.getElementById('m_p').value); f.append('m_t', document.getElementById('m_t').value);
+      f.append('m_i', document.getElementById('m_i').value); f.append('w_u', document.getElementById('w_u').value); f.append('w_p', document.getElementById('w_p').value);
+      fetch('/api/save-srv',{method:'POST',body:f}).then(()=>alert('Saved'));
+    }
+    function saveChecks(){ 
+      const f=new FormData(); const sens=[]; const rEn=document.getElementById('relays_en').checked;
+      f.append('r_en', rEn);
+      for(let i=0; i<9; i++){ const en=document.getElementById('ch'+i).checked; f.append('ch'+i,en); sens.push(en); } 
+      applyVis(sens, rEn); 
+      fetch('/api/save-sen',{method:'POST',body:f}).then(()=>alert('Ok')); 
+    }
+  </script>
+</body></html>)rawliteral";
+
+// --- API Роутинг ---
+
+void setupAPI() {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    request->send_P(200, "text/html", index_html);
+  });
+
+  server.on("/api/get-all", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    StaticJsonDocument<2500> doc;
+    doc["r_en"]=config.relays_en; doc["tg_en"]=config.tg_en; doc["tg"]=config.tg_token; doc["ids_c"]=config.ids_count;
+    JsonArray ids=doc.createNestedArray("ids"); for(int i=0; i<6; i++) ids.add(config.trusted_ids[i]);
+    doc["m_en"]=config.mqtt_en; doc["m_ip"]=config.mqtt_ip; doc["m_port"]=config.mqtt_port;
+    doc["m_u"]=config.mqtt_user; doc["m_p"]=config.mqtt_pass; doc["m_t"]=config.mqtt_topic;
+    doc["m_i"]=config.mqtt_interval; doc["w_u"]=config.www_user; doc["w_p"]=config.www_pass;
+    JsonArray sen=doc.createNestedArray("sen"); for(int i=0; i<9; i++) sen.add(config.sensors_en[i]);
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/get-relays", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<256> doc; JsonArray r=doc.createNestedArray("r");
+    for(int i=0; i<4; i++) r.add(relay_states[i]);
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/set-relay", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(request->hasParam("id") && request->hasParam("st")) {
+      int id = request->getParam("id")->value().toInt();
+      bool st = request->getParam("st")->value() == "true";
+      if(id >= 0 && id < 4) { relay_states[id] = st; saveRelays(); }
+    }
+    request->send(200);
+  });
+
+  server.on("/api/values", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<1024> doc;
+    doc["in_t"] = String(random(220, 250)/10.0, 1); doc["in_h"] = String(random(40, 50));
+    doc["lux"] = String(random(100, 500)); doc["lux_out"] = String(random(0, 5000));
+    doc["pir"] = random(0, 10) > 8; doc["pres"] = random(0, 10) > 7;
+    doc["out_t"] = String(random(-50, 150)/10.0, 1); doc["out_h"] = String(random(60, 90));
+    doc["t1"] = String(random(400, 600)/10.0, 1); doc["t2"] = String(random(400, 600)/10.0, 1);
+    doc["door"] = random(0, 10) > 7; doc["flood"] = random(0, 10) > 8;
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/save-sen", HTTP_POST, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    if(request->hasParam("r_en", true)) config.relays_en = (request->getParam("r_en", true)->value() == "true");
+    for(int i=0; i<9; i++) if(request->hasParam("ch"+String(i),true)) config.sensors_en[i]=(request->getParam("ch"+String(i),true)->value()=="true");
+    saveMainConfig(); request->send(200);
+  });
+
+  // Остальные API (save-srv, scan, wifi-connect) идентичны версии 0.1.8
+  server.on("/api/save-srv", HTTP_POST, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    config.tg_en = request->getParam("tg_en",true)->value() == "true";
+    strlcpy(config.tg_token, request->getParam("tg",true)->value().c_str(), 64);
+    config.ids_count = request->getParam("ids_c",true)->value().toInt();
+    for(int i=0; i<6; i++) { String pN = "id" + String(i); if(request->hasParam(pN, true)) config.trusted_ids[i] = request->getParam(pN, true)->value().toInt(); }
+    config.mqtt_en = request->getParam("m_en",true)->value() == "true";
+    strlcpy(config.mqtt_ip, request->getParam("m_ip",true)->value().c_str(), 32);
+    config.mqtt_port = request->getParam("m_port",true)->value().toInt();
+    strlcpy(config.mqtt_user, request->getParam("m_u",true)->value().c_str(), 32);
+    strlcpy(config.mqtt_pass, request->getParam("m_p",true)->value().c_str(), 32);
+    strlcpy(config.mqtt_topic, request->getParam("m_t",true)->value().c_str(), 64);
+    config.mqtt_interval = request->getParam("m_i",true)->value().toInt();
+    strlcpy(config.www_user, request->getParam("w_u",true)->value().c_str(), 32);
+    strlcpy(config.www_pass, request->getParam("w_p",true)->value().c_str(), 32);
+    saveMainConfig(); request->send(200);
+  });
+
+  server.on("/api/scan", HTTP_GET, [](AsyncWebServerRequest *request){
+    int n = WiFi.scanNetworks();
+    StaticJsonDocument<1024> doc; JsonArray arr = doc.to<JsonArray>();
+    for(int i=0; i<n; i++) { JsonObject obj = arr.createNestedObject(); obj["ssid"] = WiFi.SSID(i); obj["rssi"] = WiFi.RSSI(i); }
+    String j; serializeJson(doc, j); request->send(200, "application/json", j); WiFi.scanDelete();
+  });
+
+  server.on("/api/wifi-connect", HTTP_POST, [](AsyncWebServerRequest *request){
+    strlcpy(config.wifi_ssid, request->getParam("s", true)->value().c_str(), 32);
+    strlcpy(config.wifi_pass, request->getParam("p", true)->value().c_str(), 64);
+    saveMainConfig();
+    wifiConnStatus = W_CONNECTING; WiFi.begin(config.wifi_ssid, config.wifi_pass);
+    request->send(200);
+  });
+
+  server.begin();
+}
+
+// --- Обработчики Loop ---
+
+void handleWiFiStatus() {
+  if (WiFi.status() == WL_CONNECTED && wifiConnStatus != W_SUCCESS) {
+    wifiConnStatus = W_SUCCESS;
+    Serial.printf("\n>>> Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    digitalWrite(LED_PIN, HIGH);
+    apOffTime = millis() + 15000;
+  }
+}
+
+void handleAPTimeout() {
+  if (apOffTime > 0 && millis() > apOffTime) { WiFi.softAPdisconnect(true); WiFi.mode(WIFI_STA); apOffTime = 0; }
+}
+
+void handleLEDStatus() {
+  if (wifiConnStatus == W_CONNECTING) {
+    if (millis() - lastLedToggle > 100) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); lastLedToggle = millis(); }
+  } else if (wifiConnStatus == W_IDLE) {
+    if (millis() - lastLedToggle > 1000) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); lastLedToggle = millis(); }
+  }
+}
+
+void handleResetButton() {
+  if (digitalRead(RESET_PIN) == LOW) {
+    bool aborted = false;
+    for(int i=0; i<50; i++) { 
+       digitalWrite(LED_PIN, !digitalRead(LED_PIN)); delay(100);
+       if(digitalRead(RESET_PIN) == HIGH) { aborted = true; break; }
+    }
+    if(!aborted) { LittleFS.format(); delay(500); ESP.restart(); }
+    else { digitalWrite(LED_PIN, (wifiConnStatus == W_SUCCESS) ? HIGH : LOW); }
+  }
+}
+
+// --- Setup & Loop ---
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT); pinMode(RESET_PIN, INPUT_PULLUP);
+  
+  loadFiles();
+  loadRelays();
+  
+  WiFi.mode(WIFI_AP_STA);#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <ArduinoJson.h>
+#include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+#include <DNSServer.h>
+
+// --- Константы ---
+static const char* const CURRENT_VERSION = "0.1.9";
+const char* AP_SSID = "ESP32_Config_Node";
+const int RESET_PIN = 4; 
+const int LED_PIN = 2;
+
+enum ConnStatus { W_IDLE, W_CONNECTING, W_SUCCESS, W_FAIL };
+ConnStatus wifiConnStatus = W_IDLE;
+unsigned long apOffTime = 0;
+unsigned long lastLedToggle = 0;
+
+AsyncWebServer server(80);
+DNSServer dnsServer;
+
+struct Config {
+  char wifi_ssid[32] = "";
+  char wifi_pass[64] = "";
+  char www_user[32] = "admin";
+  char www_pass[32] = "admin";
+  bool tg_en = true;
+  char tg_token[64] = "";
+  long trusted_ids[6] = {0,0,0,0,0,0};
+  int ids_count = 1;
+  bool mqtt_en = true;
+  char mqtt_ip[32] = "";
+  int mqtt_port = 1883;
+  char mqtt_user[32] = "";
+  char mqtt_pass[32] = "";
+  char mqtt_topic[64] = "sensors/data";
+  int mqtt_interval = 60;
+  bool sensors_en[9] = {true,true,true,true,true,true,true,true,true};
+  bool relays_en = true; // Видимость панели реле
+} config;
+
+bool relay_states[4] = {false, false, false, false};
+
+// --- Файловая система ---
+
+void loadFiles() {
+  if (LittleFS.begin(true) && LittleFS.exists("/config.json")) {
+    File f = LittleFS.open("/config.json", "r");
+    StaticJsonDocument<2500> doc;
+    deserializeJson(doc, f);
+    strlcpy(config.wifi_ssid, doc["ssid"] | "", 32);
+    strlcpy(config.wifi_pass, doc["pass"] | "", 64);
+    strlcpy(config.www_user, doc["w_u"] | "admin", 32);
+    strlcpy(config.www_pass, doc["w_p"] | "admin", 32);
+    config.tg_en = doc["tg_en"] | true;
+    strlcpy(config.tg_token, doc["tg"] | "", 64);
+    config.ids_count = doc["ids_c"] | 1;
+    for(int i=0; i<6; i++) config.trusted_ids[i] = doc["ids"][i] | 0;
+    config.mqtt_en = doc["m_en"] | true;
+    strlcpy(config.mqtt_ip, doc["m_ip"] | "", 32);
+    config.mqtt_port = doc["m_port"] | 1883;
+    strlcpy(config.mqtt_user, doc["m_u"] | "", 32);
+    strlcpy(config.mqtt_pass, doc["m_p"] | "", 32);
+    strlcpy(config.mqtt_topic, doc["m_t"] | "sensors/data", 64);
+    config.mqtt_interval = doc["m_i"] | 60;
+    for(int i=0; i<9; i++) config.sensors_en[i] = doc["sen"][i] | true;
+    config.relays_en = doc["r_en"] | true;
+    f.close();
+  }
+}
+
+void loadRelays() {
+  if (LittleFS.exists("/relays.json")) {
+    File f = LittleFS.open("/relays.json", "r");
+    StaticJsonDocument<256> doc;
+    deserializeJson(doc, f);
+    for(int i=0; i<4; i++) relay_states[i] = doc["r"][i] | false;
+    f.close();
+  }
+}
+
+void saveRelays() {
+  StaticJsonDocument<256> doc;
+  JsonArray r = doc.createNestedArray("r");
+  for(int i=0; i<4; i++) r.add(relay_states[i]);
+  File f = LittleFS.open("/relays.json", "w");
+  serializeJson(doc, f); f.close();
+}
+
+void saveMainConfig() {
+  StaticJsonDocument<2500> doc;
+  doc["ssid"] = config.wifi_ssid; doc["pass"] = config.wifi_pass;
+  doc["w_u"] = config.www_user; doc["w_p"] = config.www_pass;
+  doc["tg_en"] = config.tg_en; doc["tg"] = config.tg_token; doc["ids_c"] = config.ids_count;
+  JsonArray ids = doc.createNestedArray("ids");
+  for(int i=0; i<6; i++) ids.add(config.trusted_ids[i]);
+  doc["m_en"] = config.mqtt_en; doc["m_ip"] = config.mqtt_ip; doc["m_port"] = config.mqtt_port;
+  doc["m_u"] = config.mqtt_user; doc["m_p"] = config.mqtt_pass;
+  doc["m_t"] = config.mqtt_topic; doc["m_i"] = config.mqtt_interval;
+  JsonArray sen = doc.createNestedArray("sen");
+  for(int i=0; i<9; i++) sen.add(config.sensors_en[i]);
+  doc["r_en"] = config.relays_en;
+  File f = LittleFS.open("/config.json", "w");
+  serializeJson(doc, f); f.close();
+}
+
+// --- HTML Интерфейс ---
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
+    .nav { display: flex; background: #fff; position: sticky; top:0; z-index:100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab.active { border-bottom: 3px solid #007bff; color: #007bff; font-weight: bold; }
+    .container { padding: 10px; max-width: 600px; margin: auto; }
+    .page { display: none; } .page.active { display: block; }
+    .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+    .card { background: #fff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    .card h4 { margin: 0 0 5px 0; font-size: 13px; color: #666; text-transform: uppercase; }
+    .card div { font-size: 22px; font-weight: bold; color: #007bff; }
+    .section { background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+    .row { display: flex; align-items: center; margin-bottom: 10px; position: relative; }
+    .row label { width: 110px; font-size: 13px; font-weight: 600; }
+    .btn { background: #007bff; color: #fff; border: none; padding: 12px; border-radius: 8px; width: 100%; cursor: pointer; font-size: 15px; font-weight: bold; }
+    .pass-wrapper { position: relative; flex: 1; display: flex; align-items: center; }
+    .pass-wrapper input { width: 100%; padding: 8px 35px 8px 8px; border: 1px solid #ddd; border-radius: 6px; }
+    .toggle-eye { position: absolute; right: 10px; cursor: pointer; color: #999; font-size: 18px; user-select: none; }
+    /* Стили для переключателей реле */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: #28a745; }
+    input:checked + .slider:before { transform: translateX(20px); }
+  </style>
+</head><body>
+  <div class="nav">
+    <div class="tab active" onclick="openTab(event, 'tab-mon')">Monitor</div>
+    <div class="tab" onclick="openTab(event, 'tab-srv')">Services</div>
+    <div class="tab" onclick="openTab(event, 'tab-wifi')">Wi-Fi</div>
+  </div>
+  <div class="container">
+    <div id="tab-mon" class="page active">
+      <div class="card-grid">
+        <div class="card" id="card-in-t"><h4>Т.Внутр.</h4><div id="v_in_t">--</div></div>
+        <div class="card" id="card-in-h"><h4>Вл.Внутр.</h4><div id="v_in_h">--</div></div>
+        <div class="card" id="card-lux"><h4>Свет Вн.</h4><div id="v_lux">--</div></div>
+        <div class="card" id="card-lux-out"><h4>Свет Нар.</h4><div id="v_lux_out">--</div></div>
+        <div class="card" id="card-pir"><h4>Движение</h4><div id="v_pir">--</div></div>
+        <div class="card" id="card-pres"><h4>Присут.</h4><div id="v_pres">--</div></div>
+        <div class="card" id="card-out-t"><h4>Т.Наруж.</h4><div id="v_out_t">--</div></div>
+        <div class="card" id="card-out-h"><h4>Вл.Наруж.</h4><div id="v_out_h">--</div></div>
+        <div class="card" id="card-t1"><h4>Т1 Рад.</h4><div id="v_t1">--</div></div>
+        <div class="card" id="card-t2"><h4>Т2 Рад.</h4><div id="v_t2">--</div></div>
+        <div class="card" id="card-door"><h4>Дверь</h4><div id="v_door">--</div></div>
+        <div class="card" id="card-flood"><h4>Затоп.</h4><div id="v_flood">--</div></div>
+      </div>
+
+      <div id="relay-panel" class="section" style="display:none">
+        <h3 style="margin:0 0 15px 0; font-size:16px">Управление реле</h3>
+        <div class="card-grid" style="grid-template-columns: 1fr 1fr; gap: 10px;">
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 1</span>
+              <label class="switch"><input type="checkbox" id="r0" onchange="setRelay(0)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 2</span>
+              <label class="switch"><input type="checkbox" id="r1" onchange="setRelay(1)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 3</span>
+              <label class="switch"><input type="checkbox" id="r2" onchange="setRelay(2)"><span class="slider"></span></label>
+           </div>
+           <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 15px;">
+              <span style="font-weight:600">Реле 4</span>
+              <label class="switch"><input type="checkbox" id="r3" onchange="setRelay(3)"><span class="slider"></span></label>
+           </div>
+        </div>
+      </div>
+
+      <button class="btn" style="background:#6c757d" onclick="toggleSets()">⚙️ Настройка датчиков</button>
+      <div id="settings-panel" class="section" style="display:none; margin-top:10px">
+        <div id="checks"></div>
+        <label style="display:block; margin:8px 0; font-size:13px; color:#007bff; font-weight:bold">
+          <input type="checkbox" id="relays_en"> Панель управления реле
+        </label>
+        <button class="btn" onclick="saveChecks()" style="margin-top:10px">Применить</button>
+      </div>
+    </div>
+    <div id="tab-srv" class="page">
+        <div class="section">
+          <h3>Telegram <label style="font-size:12px; float:right">Activate <input type="checkbox" id="tg_en"></label></h3>
+          <div class="row"><label>Bot Token</label><input id="tg_token" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div id="ids-container"></div>
+          <button class="btn" style="background:#28a745; margin-bottom:10px; padding:8px" onclick="addUserId()">+ Add UserID</button>
+        </div>
+        <div class="section">
+          <h3>MQTT <label style="font-size:12px; float:right">Activate <input type="checkbox" id="mqtt_en"></label></h3>
+          <div class="row"><label>Broker IP</label><input id="m_ip" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Port</label><input id="m_port" type="number"></div>
+          <div class="row"><label>User</label><input id="m_u" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Pass</label><div class="pass-wrapper"><input id="m_p" type="password"><span class="toggle-eye" onclick="togglePass('m_p')">👁️</span></div></div>
+          <div class="row"><label>Topic</label><input id="m_t" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Interval (s)</label><input id="m_i" type="number"></div>
+        </div>
+        <div class="section">
+          <h3>Web Security</h3>
+          <div class="row"><label>Login</label><input id="w_u" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Password</label><div class="pass-wrapper"><input id="w_p" type="password"><span class="toggle-eye" onclick="togglePass('w_p')">👁️</span></div></div>
+        </div>
+        <button class="btn" onclick="saveSrv()">Сохранить настройки</button>
+      </div>
+      <div id="tab-wifi" class="page">
+        <div class="section">
+          <button class="btn" onclick="scan()">Поиск сетей</button>
+          <div id="nets" style="margin-top:10px; max-height:200px; overflow-y:auto"></div>
+          <div class="row" style="margin-top:15px"><label>SSID</label><input id="ssid" readonly style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;"></div>
+          <div class="row"><label>Пароль</label><div class="pass-wrapper"><input id="w_pass" type="password"><span class="toggle-eye" onclick="togglePass('w_pass')">👁️</span></div></div>
+          <button class="btn" id="conn-btn" style="background:#28a745" onclick="conn()">Подключить</button>
+        </div>
+        <div id="curr-conn" class="section" style="display:none; border: 2px solid #28a745; margin-top: 15px;">
+          <h3 style="color:#28a745; margin-top:0">Текущее подключение</h3>
+          <div class="row"><label>SSID</label><span id="cur_ssid" style="font-weight:bold"></span></div>
+          <div class="row"><label>IP</label><span id="cur_ip" style="font-weight:bold"></span></div>
+          <div class="row"><label>Сигнал</label><span id="cur_rssi"></span></div>
+          <div class="row"><label>Link</label><a id="cur_link" href="" target="_blank" style="color:#007bff; font-weight:bold; word-break:break-all"></a></div>
+        </div>
+      </div>
+  </div>
+
+  <script>
+    let activeIds = 0;
+    const senNames = ["Внутренний воздух", "Внутреннее освещение", "Наружное освещение", "Движение", "Присутствие", "Наружный воздух", "Радиаторы", "Дверь", "Затопление"];
+    function openTab(e, n){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); document.getElementById(n).classList.add('active'); e.currentTarget.classList.add('active'); }
+    function toggleSets(){ const p=document.getElementById('settings-panel'); p.style.display=p.style.display==='block'?'none':'block'; }
+    function togglePass(id) { const el = document.getElementById(id); el.type = (el.type === "password") ? "text" : "password"; }
+    const chBox = document.getElementById('checks');
+    senNames.forEach((n, i) => { chBox.innerHTML += `<label style="display:block; margin:8px 0; font-size:13px"><input type="checkbox" id="ch${i}"> ${n}</label>`; });
+    function addUserId(val = "") { if(activeIds >= 6) return; const container = document.getElementById('ids-container'); const div = document.createElement('div'); div.className = 'row'; div.innerHTML = `<label>UserID ${activeIds+1}</label><input id="id${activeIds}" value="${val}" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;">`; container.appendChild(div); activeIds++; }
+    
+    function applyVis(senArray, relEn){ 
+      const maps = [['card-in-t','card-in-h'],['card-lux'],['card-lux-out'],['card-pir'],['card-pres'],['card-out-t','card-out-h'],['card-t1','card-t2'],['card-door'],['card-flood']]; 
+      senArray.forEach((en, i) => { if(maps[i]) maps[i].forEach(id => { const el=document.getElementById(id); if(el) el.style.display = en ? 'block' : 'none' })}); 
+      document.getElementById('relay-panel').style.display = relEn ? 'block' : 'none';
+    }
+
+    // Загрузка данных
+    fetch('/api/get-all').then(r=>r.json()).then(c=>{
+      document.getElementById('relays_en').checked=c.r_en;
+      document.getElementById('tg_en').checked=c.tg_en; document.getElementById('tg_token').value=c.tg;
+      document.getElementById('mqtt_en').checked=c.m_en; document.getElementById('m_ip').value=c.m_ip;
+      document.getElementById('m_port').value=c.m_port; document.getElementById('m_u').value=c.m_u;
+      document.getElementById('m_p').value=c.m_p; document.getElementById('m_t').value=c.m_t;
+      document.getElementById('m_i').value=c.m_i; document.getElementById('w_u').value=c.w_u; document.getElementById('w_p').value=c.w_p;
+      for(let i=0; i<c.ids_c; i++) addUserId(c.ids[i]); if(activeIds === 0) addUserId(""); 
+      for(let i=0; i<9; i++) { if(document.getElementById('ch'+i)) document.getElementById('ch'+i).checked=c.sen[i]; }
+      applyVis(c.sen, c.r_en);
+    });
+
+    fetch('/api/get-relays').then(r=>r.json()).then(d=>{ d.r.forEach((v,i)=>document.getElementById('r'+i).checked=v); });
+
+    setInterval(() => {
+      fetch('/api/values').then(r=>r.json()).then(v=>{
+        ['in_t','in_h','out_t','out_h','lux','lux_out','t1','t2'].forEach(f => { if(document.getElementById('v_'+f)) document.getElementById('v_'+f).innerText = v[f] });
+        const updateStatus = (id, val, tT, tF) => { const el=document.getElementById(id); if(!el) return; el.innerText=val?tT:tF; el.style.color=val?'red':'#007bff'; };
+        updateStatus('v_pir',v.pir,'ЕСТЬ','НЕТ'); updateStatus('v_pres',v.pres,'ЕСТЬ','НЕТ');
+        updateStatus('v_door',v.door,'ОТКР','ЗАКР'); updateStatus('v_flood',v.flood,'ЕСТЬ','НЕТ');
+      });
+    }, 2000);
+
+    function setRelay(idx){ const st=document.getElementById('r'+idx).checked; fetch(`/api/set-relay?id=${idx}&st=${st}`); }
+    function scan(){ const n=document.getElementById('nets'); n.innerHTML='Поиск...'; fetch('/api/scan').then(r=>r.json()).then(d=>{ n.innerHTML=''; d.forEach(x=>{ const i=document.createElement('div'); i.className='net-item'; i.innerText=x.ssid+" ("+x.rssi+"dBm)"; i.onclick=()=>{document.getElementById('ssid').value=x.ssid;}; n.appendChild(i);});});}
+    function conn(){ const f=new FormData(); f.append('s',document.getElementById('ssid').value); f.append('p',document.getElementById('w_pass').value); fetch('/api/wifi-connect',{method:'POST',body:f}).then(()=>{alert('Попытка подключения...');pollWifiStatus();});}
+    
+    function pollWifiStatus() {
+      fetch('/api/wifi-status').then(r => r.json()).then(d => {
+        if (d.connected) {
+          document.getElementById('curr-conn').style.display = 'block';
+          document.getElementById('cur_ssid').innerText = d.ssid;
+          document.getElementById('cur_ip').innerText = d.ip;
+          document.getElementById('cur_rssi').innerText = d.rssi + " dBm";
+          const url = "http://" + d.ip + "/";
+          const link = document.getElementById('cur_link');
+          link.href = url;
+          link.innerText = url;
+          fetch('/api/ap-disable');
+        } else {
+          setTimeout(pollWifiStatus, 3000);
+        }
+      });
+    }
+
+
+    function saveSrv(){
+      const f=new FormData(); f.append('tg_en', document.getElementById('tg_en').checked); f.append('tg', document.getElementById('tg_token').value); f.append('ids_c', activeIds);
+      for(let i=0; i<activeIds; i++) f.append('id'+i, document.getElementById('id'+i).value);
+      f.append('m_en', document.getElementById('mqtt_en').checked); f.append('m_ip', document.getElementById('m_ip').value);
+      f.append('m_port', document.getElementById('m_port').value); f.append('m_u', document.getElementById('m_u').value);
+      f.append('m_p', document.getElementById('m_p').value); f.append('m_t', document.getElementById('m_t').value);
+      f.append('m_i', document.getElementById('m_i').value); f.append('w_u', document.getElementById('w_u').value); f.append('w_p', document.getElementById('w_p').value);
+      fetch('/api/save-srv',{method:'POST',body:f}).then(()=>alert('Saved'));
+    }
+    function saveChecks(){ 
+      const f=new FormData(); const sens=[]; const rEn=document.getElementById('relays_en').checked;
+      f.append('r_en', rEn);
+      for(let i=0; i<9; i++){ const en=document.getElementById('ch'+i).checked; f.append('ch'+i,en); sens.push(en); } 
+      applyVis(sens, rEn); 
+      fetch('/api/save-sen',{method:'POST',body:f}).then(()=>alert('Ok')); 
+    }
+  </script>
+</body></html>)rawliteral";
+
+// --- API Роутинг ---
+
+void setupAPI() {
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    request->send_P(200, "text/html", index_html);
+  });
+
+  server.on("/api/get-all", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    StaticJsonDocument<2500> doc;
+    doc["r_en"]=config.relays_en; doc["tg_en"]=config.tg_en; doc["tg"]=config.tg_token; doc["ids_c"]=config.ids_count;
+    JsonArray ids=doc.createNestedArray("ids"); for(int i=0; i<6; i++) ids.add(config.trusted_ids[i]);
+    doc["m_en"]=config.mqtt_en; doc["m_ip"]=config.mqtt_ip; doc["m_port"]=config.mqtt_port;
+    doc["m_u"]=config.mqtt_user; doc["m_p"]=config.mqtt_pass; doc["m_t"]=config.mqtt_topic;
+    doc["m_i"]=config.mqtt_interval; doc["w_u"]=config.www_user; doc["w_p"]=config.www_pass;
+    JsonArray sen=doc.createNestedArray("sen"); for(int i=0; i<9; i++) sen.add(config.sensors_en[i]);
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/get-relays", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<256> doc; JsonArray r=doc.createNestedArray("r");
+    for(int i=0; i<4; i++) r.add(relay_states[i]);
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/set-relay", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(request->hasParam("id") && request->hasParam("st")) {
+      int id = request->getParam("id")->value().toInt();
+      bool st = request->getParam("st")->value() == "true";
+      if(id >= 0 && id < 4) { relay_states[id] = st; saveRelays(); }
+    }
+    request->send(200);
+  });
+
+  server.on("/api/values", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<1024> doc;
+    doc["in_t"] = String(random(220, 250)/10.0, 1); doc["in_h"] = String(random(40, 50));
+    doc["lux"] = String(random(100, 500)); doc["lux_out"] = String(random(0, 5000));
+    doc["pir"] = random(0, 10) > 8; doc["pres"] = random(0, 10) > 7;
+    doc["out_t"] = String(random(-50, 150)/10.0, 1); doc["out_h"] = String(random(60, 90));
+    doc["t1"] = String(random(400, 600)/10.0, 1); doc["t2"] = String(random(400, 600)/10.0, 1);
+    doc["door"] = random(0, 10) > 7; doc["flood"] = random(0, 10) > 8;
+    String j; serializeJson(doc, j); request->send(200, "application/json", j);
+  });
+
+  server.on("/api/save-sen", HTTP_POST, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    if(request->hasParam("r_en", true)) config.relays_en = (request->getParam("r_en", true)->value() == "true");
+    for(int i=0; i<9; i++) if(request->hasParam("ch"+String(i),true)) config.sensors_en[i]=(request->getParam("ch"+String(i),true)->value()=="true");
+    saveMainConfig(); request->send(200);
+  });
+
+  // Остальные API (save-srv, scan, wifi-connect) идентичны версии 0.1.8
+  server.on("/api/save-srv", HTTP_POST, [](AsyncWebServerRequest *request){
+    if(!request->authenticate(config.www_user, config.www_pass)) return request->requestAuthentication();
+    config.tg_en = request->getParam("tg_en",true)->value() == "true";
+    strlcpy(config.tg_token, request->getParam("tg",true)->value().c_str(), 64);
+    config.ids_count = request->getParam("ids_c",true)->value().toInt();
+    for(int i=0; i<6; i++) { String pN = "id" + String(i); if(request->hasParam(pN, true)) config.trusted_ids[i] = request->getParam(pN, true)->value().toInt(); }
+    config.mqtt_en = request->getParam("m_en",true)->value() == "true";
+    strlcpy(config.mqtt_ip, request->getParam("m_ip",true)->value().c_str(), 32);
+    config.mqtt_port = request->getParam("m_port",true)->value().toInt();
+    strlcpy(config.mqtt_user, request->getParam("m_u",true)->value().c_str(), 32);
+    strlcpy(config.mqtt_pass, request->getParam("m_p",true)->value().c_str(), 32);
+    strlcpy(config.mqtt_topic, request->getParam("m_t",true)->value().c_str(), 64);
+    config.mqtt_interval = request->getParam("m_i",true)->value().toInt();
+    strlcpy(config.www_user, request->getParam("w_u",true)->value().c_str(), 32);
+    strlcpy(config.www_pass, request->getParam("w_p",true)->value().c_str(), 32);
+    saveMainConfig(); request->send(200);
+  });
+
+  server.on("/api/scan", HTTP_GET, [](AsyncWebServerRequest *request){
+    int n = WiFi.scanNetworks();
+    StaticJsonDocument<1024> doc; JsonArray arr = doc.to<JsonArray>();
+    for(int i=0; i<n; i++) { JsonObject obj = arr.createNestedObject(); obj["ssid"] = WiFi.SSID(i); obj["rssi"] = WiFi.RSSI(i); }
+    String j; serializeJson(doc, j); request->send(200, "application/json", j); WiFi.scanDelete();
+  });
+
+  server.on("/api/wifi-connect", HTTP_POST, [](AsyncWebServerRequest *request){
+    strlcpy(config.wifi_ssid, request->getParam("s", true)->value().c_str(), 32);
+    strlcpy(config.wifi_pass, request->getParam("p", true)->value().c_str(), 64);
+    saveMainConfig();
+    wifiConnStatus = W_CONNECTING; WiFi.begin(config.wifi_ssid, config.wifi_pass);
+    request->send(200);
+  });
+
+  // 1. Статус текущего подключения
+  server.on("/api/wifi-status", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<256> doc;
+    bool connected = (WiFi.status() == WL_CONNECTED);
+    doc["connected"] = connected;
+    if (connected) {
+      doc["ssid"] = WiFi.SSID();
+      doc["ip"] = WiFi.localIP().toString();
+      doc["rssi"] = WiFi.RSSI();
+    }
+    String j;
+    serializeJson(doc, j);
+    request->send(200, "application/json", j);
+  });
+
+// 2. Команда на постановку выключения AP в очередь
+  server.on("/api/ap-disable", HTTP_GET, [](AsyncWebServerRequest *request){
+    apOffTime = millis() + 15000; // Выключить через 15 секунд
+    request->send(200);
+  });
+
+  server.begin();
+}
+
+// --- Обработчики Loop ---
+
+void handleWiFiStatus() {
+  if (WiFi.status() == WL_CONNECTED && wifiConnStatus != W_SUCCESS) {
+    wifiConnStatus = W_SUCCESS;
+    Serial.printf("\n>>> Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    digitalWrite(LED_PIN, HIGH);
+  }
+}
+
+void handleAPTimeout() {
+  if (apOffTime > 0 && millis() > apOffTime) { WiFi.softAPdisconnect(true); WiFi.mode(WIFI_STA); apOffTime = 0; }
+}
+
+void handleLEDStatus() {
+  if (wifiConnStatus == W_CONNECTING) {
+    if (millis() - lastLedToggle > 100) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); lastLedToggle = millis(); }
+  } else if (wifiConnStatus == W_IDLE) {
+    if (millis() - lastLedToggle > 1000) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); lastLedToggle = millis(); }
+  }
+}
+
+void handleResetButton() {
+  if (digitalRead(RESET_PIN) == LOW) {
+    bool aborted = false;
+    for(int i=0; i<50; i++) { 
+       digitalWrite(LED_PIN, !digitalRead(LED_PIN)); delay(100);
+       if(digitalRead(RESET_PIN) == HIGH) { aborted = true; break; }
+    }
+    if(!aborted) { LittleFS.format(); delay(500); ESP.restart(); }
+    else { digitalWrite(LED_PIN, (wifiConnStatus == W_SUCCESS) ? HIGH : LOW); }
+  }
+}
+
+// --- Setup & Loop ---
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT); pinMode(RESET_PIN, INPUT_PULLUP);
+  
+  loadFiles();
+  loadRelays();
+  
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(AP_SSID);
+  
+  if(strlen(config.wifi_ssid) > 0) {
+    WiFi.begin(config.wifi_ssid, config.wifi_pass);
+    wifiConnStatus = W_CONNECTING;
+  }
+  setupAPI();
+}
+
+void loop() {
+  handleWiFiStatus();
+  handleAPTimeout();
+  handleLEDStatus();
+  handleResetButton();
+}
+  WiFi.softAP(AP_SSID);
+  
+  if(strlen(config.wifi_ssid) > 0) {
+    WiFi.begin(config.wifi_ssid, config.wifi_pass);
+    wifiConnStatus = W_CONNECTING;
+  }
+  setupAPI();
+}
+
+void loop() {
+  handleWiFiStatus();
+  handleAPTimeout();
+  handleLEDStatus();
+  handleResetButton();
+}

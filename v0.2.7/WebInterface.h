@@ -1,0 +1,1201 @@
+#ifndef WEB_INTERFACE_H
+#define WEB_INTERFACE_H
+
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        background: #f0f2f5;
+        color: #1c1e21;
+      }
+      .nav {
+        display: flex;
+        background: #fff;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .nav-tab {
+        flex: 1;
+        padding: 15px;
+        text-align: center;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+      }
+      .nav-tab.active {
+        border-bottom: 3px solid #007bff;
+        color: #007bff;
+        font-weight: bold;
+      }
+      .container {
+        padding: 10px;
+        max-width: 600px;
+        margin: auto;
+      }
+      .page {
+        display: none;
+      }
+      .page.active {
+        display: block;
+      }
+      .card-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 15px;
+      }
+      .card {
+        background: #fff;
+        padding: 15px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      }
+      .card h4 {
+        margin: 0 0 5px 0;
+        font-size: 13px;
+        color: #666;
+        text-transform: uppercase;
+      }
+      .card div {
+        font-size: 22px;
+        font-weight: bold;
+        color: #007bff;
+      }
+      .section {
+        background: #fff;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        position: relative;
+      }
+      .row label {
+        width: 110px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .btn {
+        background: #007bff;
+        color: #fff;
+        border: none;
+        padding: 12px;
+        border-radius: 8px;
+        width: 100%;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: bold;
+      }
+      .btn-scan {
+        background: #17a2b8;
+        color: white;
+        border: none;
+        padding: 8px;
+        border-radius: 6px;
+        width: 100%;
+        cursor: pointer;
+        margin: 10px 0;
+      }
+      .pass-wrapper {
+        position: relative;
+        flex: 1;
+        display: flex;
+        align-items: center;
+      }
+      .pass-wrapper input {
+        width: 100%;
+        padding: 8px 35px 8px 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+      }
+      .toggle-eye {
+        position: absolute;
+        right: 10px;
+        cursor: pointer;
+        color: #999;
+        font-size: 18px;
+        user-select: none;
+      }
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        vertical-align: middle;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      input:checked + .slider {
+        background-color: #28a745;
+      }
+      input:checked + .slider:before {
+        transform: translateX(20px);
+      }
+      .net-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .net-item:hover {
+        background: #f8f9fa;
+      }
+      .details {
+        background: #fff;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        border: 1px solid #eee;
+        overflow: hidden;
+      }
+      summary {
+        padding: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        font-weight: 500;
+        outline: none;
+      }
+      details-content {
+        padding: 15px;
+        border-top: 1px solid #f0f0f0;
+        background: #fafafa;
+      }
+      .acc-item {
+        background: #fff;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        overflow: hidden;
+        border: 1px solid #eee;
+      }
+      .acc-header {
+        padding: 12px 15px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        background: #fff;
+        justify-content: space-between;
+      }
+      .acc-panel {
+        display: none;
+        padding: 15px;
+        border-top: 1px solid #eee;
+        background: #fafafa;
+      }
+      .acc-panel.show {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <div class="nav-tab active" onclick="openTab(event, 'tab-mon')">
+        Monitor
+      </div>
+      <div class="nav-tab" onclick="openTab(event, 'tab-sens')">Sensors</div>
+      <div class="nav-tab" onclick="openTab(event, 'tab-srv')">Services</div>
+    </div>
+    <div class="container">
+      <div id="tab-mon" class="page active">
+        <div class="card-grid">
+          <div class="card" id="card-dht-t">
+            <h4>Т.Внутр.</h4>
+            <div id="v_in_t">--</div>
+          </div>
+          <div class="card" id="card-dht-h">
+            <h4>Вл.Внутр.</h4>
+            <div id="v_in_h">--</div>
+          </div>
+          <div class="card" id="card-lux-5516">
+            <h4>Свет Вн.</h4>
+            <div id="v_lux">--</div>
+          </div>
+          <div class="card" id="card-tcrt">
+            <h4>Свет Нар.</h4>
+            <div id="v_lux_out">--</div>
+          </div>
+          <div class="card" id="card-pir">
+            <h4>Движение</h4>
+            <div id="v_pir">--</div>
+          </div>
+          <div class="card" id="card-pres">
+            <h4>Присут.</h4>
+            <div id="v_pres">--</div>
+          </div>
+          <div class="card" id="card-bme-t">
+            <h4>Т.Наруж.</h4>
+            <div id="v_out_t">--</div>
+          </div>
+          <div class="card" id="card-bme-h">
+            <h4>Вл.Наруж.</h4>
+            <div id="v_out_h">--</div>
+          </div>
+          <div class="card" id="card-bme-p">
+            <h4>Давл.Наруж.</h4>
+            <div id="v_out_p">--</div>
+          </div>
+          <div class="card" id="card-t1">
+            <h4>Т1 Рад.</h4>
+            <div id="v_t1">--</div>
+          </div>
+          <div class="card" id="card-t2">
+            <h4>Т2 Рад.</h4>
+            <div id="v_t2">--</div>
+          </div>
+          <div class="card" id="card-t3">
+            <h4>Т3 Рад.</h4>
+            <div id="v_t3">--</div>
+          </div>
+          <div class="card" id="card-t4">
+            <h4>Т4 Рад.</h4>
+            <div id="v_t4">--</div>
+          </div>
+          <div class="card" id="card-door">
+            <h4>Дверь</h4>
+            <div id="v_door">--</div>
+          </div>
+          <div class="card" id="card-flood">
+            <h4>Затоп.</h4>
+            <div id="v_flood">--</div>
+          </div>
+          <div class="card" id="card-r0">
+            <h4>Реле 1</h4>
+            <label class="switch"
+              ><input type="checkbox" id="r0" onchange="setRelay(0)" /><span
+                class="slider"
+              ></span
+            ></label>
+          </div>
+          <div class="card" id="card-r1">
+            <h4>Реле 2</h4>
+            <label class="switch"
+              ><input type="checkbox" id="r1" onchange="setRelay(1)" /><span
+                class="slider"
+              ></span
+            ></label>
+          </div>
+          <div class="card" id="card-r2">
+            <h4>Реле 3</h4>
+            <label class="switch"
+              ><input type="checkbox" id="r2" onchange="setRelay(2)" /><span
+                class="slider"
+              ></span
+            ></label>
+          </div>
+          <div class="card" id="card-r3">
+            <h4>Реле 4</h4>
+            <label class="switch"
+              ><input type="checkbox" id="r3" onchange="setRelay(3)" /><span
+                class="slider"
+              ></span
+            ></label>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-sens" class="page">
+        <div id="acc-cont">
+          <!-- Sensor BME280 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"
+                ><b>BME280</b> (Температура, Влажность, Даавление)</span
+              >
+              <label class="switch"
+                ><input type="checkbox" id="bme_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label
+                ><input
+                  type="text"
+                  value="I2C (SDA/SCL)"
+                  readonly
+                  style="background: #eee"
+                />
+              </div>
+              <button class="btn-scan" onclick="scan('bme280')">
+                Search BME280
+              </button>
+              <div id="res_bme280"></div>
+            </div>
+          </div>
+
+          <!-- Sensor DHT22 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"
+                ><b>DHT22</b> (Температура, Влажность)</span
+              >
+              <label class="switch"
+                ><input type="checkbox" id="dht_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="dht_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('dht22')">
+                Search DHT22
+              </button>
+              <div id="res_dht280"></div>
+            </div>
+          </div>
+
+          <!-- Sensor DS18B20 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"
+                ><b>DS18B20</b> (Температура)</span
+              >
+              <label class="switch"
+                ><input type="checkbox" id="ds_en" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="ds_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('ds18b20')">
+                Search DS18B20
+              </button>
+              <div id="res_ds18b20"></div>
+            </div>
+          </div>
+
+          <!-- Sensor TCRT5000 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>TCRT5000</b> (Освещение)</span>
+              <label class="switch"
+                ><input type="checkbox" id="tcrt_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label
+                ><input
+                  type="text"
+                  value="I2C (SDA/SCL)"
+                  readonly
+                  style="background: #eee"
+                />
+              </div>
+              <button class="btn-scan" onclick="scan('tcrt5000')">
+                Search TCRT5000
+              </button>
+              <div id="res_tcrt5000"></div>
+            </div>
+          </div>
+
+          <!-- Sensor PIR -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>PIR</b> (Движение)</span>
+              <label class="switch"
+                ><input type="checkbox" id="pir_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="pir_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('pir')">Search PIR</button>
+              <div id="res_pir"></div>
+            </div>
+          </div>
+
+          <!-- Sensor LD2420 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>LD2420</b> (Присутствие)</span>
+              <label class="switch"
+                ><input type="checkbox" id="ld_en" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="ld_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('ld2420')">
+                Search LD2420
+              </button>
+              <div id="res_ld2420"></div>
+            </div>
+          </div>
+
+          <!-- Sensor DOOR -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>DOOR</b> (Дверь)</span>
+              <label class="switch"
+                ><input type="checkbox" id="door_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="door_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('door')">
+                Search DOOR
+              </button>
+              <div id="res_door"></div>
+            </div>
+          </div>
+
+          <!-- Sensor FLOOD -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>FLOOD</b> (Затопление)</span>
+              <label class="switch"
+                ><input type="checkbox" id="fl_en" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="fl_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('flood')">
+                Search FLOOD
+              </button>
+              <div id="res_flood"></div>
+            </div>
+          </div>
+
+          <!-- Sensor Resistor 5516 -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"
+                ><b>Resistor 5516</b> (Освещение)</span
+              >
+              <label class="switch"
+                ><input type="checkbox" id="5516_en" /><span
+                  class="slider"
+                ></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>GPIO:</label><input type="number" id="5516_p" />
+              </div>
+              <button class="btn-scan" onclick="scan('5516')">
+                Search Resistor 5516
+              </button>
+              <div id="res_5516"></div>
+            </div>
+          </div>
+
+          <!-- Sensor RELE -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)"><b>RELEx4</b> (Блок реле)</span>
+              <label class="switch"
+                ><input type="checkbox" id="r_en" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel">
+              <div class="row">
+                <label>R1 GPIO:</label><input type="number" id="r_p0" />
+              </div>
+              <div class="row">
+                <label>R2 GPIO:</label><input type="number" id="r_p1" />
+              </div>
+              <div class="row">
+                <label>R3 GPIO:</label><input type="number" id="r_p2" />
+              </div>
+              <div class="row">
+                <label>R4 GPIO:</label><input type="number" id="r_p3" />
+              </div>
+              <button class="btn-scan" onclick="scan('rele')">
+                Инициализировать
+              </button>
+            </div>
+          </div>
+        </div>
+        <button class="btn" style="margin-top: 15px" onclick="saveSens()">
+          Save settings :
+        </button>
+      </div>
+
+      <div id="tab-srv" class="page">
+        <div class="section">
+          <h3>
+            Wi-Fi<label style="font-size: 12px; float: right"
+              >Activate <input type="checkbox" id="wifi_en"
+            /></label>
+          </h3>
+          <button class="btn" onclick="scanWiFi()">Scan Wi-Fi</button>
+          <div
+            id="nets"
+            style="
+              margin-top: 10px;
+              max-height: 250px;
+              overflow-y: auto;
+              border: 1px solid #eee;
+              border-radius: 8px;
+            "
+          ></div>
+          <div class="row" style="margin-top: 15px">
+            <label>SSID</label
+            ><input
+              id="ssid"
+              readonly
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div class="row">
+            <label>Password</label>
+            <div class="pass-wrapper">
+              <input id="w_pass" type="password" /><span
+                class="toggle-eye"
+                onclick="togglePass('w_pass')"
+                >👁️</span
+              >
+            </div>
+          </div>
+          <button class="btn" style="background: #28a745" onclick="connWiFi()">
+            Connect
+          </button>
+        </div>
+        <div
+          id="curr-conn"
+          class="section"
+          style="display: none; border: 2px solid #28a745; margin-top: 15px"
+        >
+          <h3 style="color: #28a745; margin-top: 0; font-size: 16px">
+            Connected to:
+          </h3>
+          <div class="row">
+            <label>SSID</label
+            ><span id="cur_ssid" style="font-weight: bold"></span>
+          </div>
+          <div class="row">
+            <label>IP</label><span id="cur_ip" style="font-weight: bold"></span>
+          </div>
+          <div class="row"><label>RSSI</label><span id="cur_rssi"></span></div>
+          <div class="row">
+            <label>Link</label
+            ><a
+              id="cur_link"
+              href=""
+              target="_blank"
+              style="color: #007bff; font-weight: bold; word-break: break-all"
+            ></a>
+          </div>
+        </div>
+        <div class="section">
+          <h3>
+            Telegram
+            <label style="font-size: 12px; float: right"
+              >Activate <input type="checkbox" id="tg_en"
+            /></label>
+          </h3>
+          <div class="row">
+            <label>Bot Token</label
+            ><input
+              id="tg_token"
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div id="ids-container"></div>
+          <button
+            class="btn"
+            style="background: #28a745; margin-bottom: 10px; padding: 8px"
+            onclick="addUserId()"
+          >
+            + Add UserID
+          </button>
+        </div>
+        <div class="section">
+          <h3>
+            MQTT
+            <label style="font-size: 12px; float: right"
+              >Activate <input type="checkbox" id="mqtt_en"
+            /></label>
+          </h3>
+          <div class="row">
+            <label>Broker IP</label
+            ><input
+              id="m_ip"
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div class="row">
+            <label>Port</label><input id="m_port" type="number" />
+          </div>
+          <div class="row">
+            <label>User</label
+            ><input
+              id="m_u"
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div class="row">
+            <label>Pass</label>
+            <div class="pass-wrapper">
+              <input id="m_p" type="password" /><span
+                class="toggle-eye"
+                onclick="togglePass('m_p')"
+                >👁️</span
+              >
+            </div>
+          </div>
+          <div class="row">
+            <label>Topic</label
+            ><input
+              id="m_t"
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div class="row">
+            <label>Interval (s)</label><input id="m_i" type="number" />
+          </div>
+        </div>
+        <div class="section">
+          <h3>Web Security</h3>
+          <div class="row">
+            <label>Login</label
+            ><input
+              id="w_u"
+              style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+              "
+            />
+          </div>
+          <div class="row">
+            <label>Password</label>
+            <div class="pass-wrapper">
+              <input id="w_p" type="password" /><span
+                class="toggle-eye"
+                onclick="togglePass('w_p')"
+                >👁️</span
+              >
+            </div>
+          </div>
+        </div>
+        <button class="btn" onclick="saveSrv()">Save settings</button>
+      </div>
+    </div>
+    <script>
+      const BASE_URL = "";
+      let activeIds = 0;
+
+      // const SENSOR_MAP = {
+      //   bme280_out: {
+      //     title: "Наружный воздух (BME280)",
+      //     cards: ["card-bme-t", "card-bme-h", "card-bme-p"],
+      //     gpio: 1,
+      //   },
+      //   tcrt5000: {
+      //     title: "Наружное освещение (TCRT5000)",
+      //     cards: ["card-tcrt"],
+      //     gpio: 1,
+      //   },
+      //   dht22: {
+      //     title: "Внутренний воздух (DHT22)",
+      //     cards: ["card-dht-t", "card-dht-h"],
+      //     gpio: 1,
+      //   },
+      //   lux5516: {
+      //     title: "Внутреннее освещение (5516)",
+      //     cards: ["card-lux-5516"],
+      //     gpio: 1,
+      //   },
+      //   pir: {
+      //     title: "Движение (SR501)",
+      //     cards: ["card-pir"],
+      //     gpio: 1,
+      //   },
+      //   presence: {
+      //     title: "Присутствие (LD2420)",
+      //     cards: ["card-pres"],
+      //     gpio: 1,
+      //   },
+      //   ds18b20: {
+      //     title: "Нагревательный прибор (DS18B20)",
+      //     cards: ["card-t1", "card-t2", "card-t3", "card-t4"],
+      //     gpio: 1,
+      //     onewire: true,
+      //   },
+      //   door: {
+      //     title: "Дверь (Magnet)",
+      //     cards: ["card-door"],
+      //     gpio: 1,
+      //   },
+      //   flood: {
+      //     title: "Затопление (Resistor)",
+      //     cards: ["card-flood"],
+      //     gpio: 1,
+      //   },
+      //   relay: {
+      //     title: "Реле (Block Rele)",
+      //     cards: ["card-r0", "card-r1", "card-r2", "card-r3"],
+      //     gpio: 4,
+      //   },
+      // };
+
+      // async function scanDS() {
+      //   const pin = document.getElementById("sen_g6").value;
+      //   const btn = document.querySelector(".btn-search");
+      //   btn.innerText = "Поиск...";
+      //   try {
+      //     const res = await fetch(`${BASE_URL}/api/ds-scan?pin=${pin}`);
+      //     const found = await res.json();
+      //     const listDiv = document.getElementById("ds-found-list");
+      //     listDiv.innerHTML = "";
+      //     found.forEach((item, i) => {
+      //       listDiv.innerHTML += `
+      //             <div class="ds-item" data-mac="${item.m}">
+      //                 <span>№${i + 1} (${item.m}) <span class="ds-temp">[ ${
+      //         item.t
+      //       } °C ]</span></span>
+      //                 <input type="number" class="ds-u-idx" value="${i + 1}">
+      //             </div>`;
+      //     });
+      //   } catch (e) {
+      //     alert("Scanning error");
+      //   } finally {
+      //     btn.innerText = "Scan";
+      //   }
+      // }
+
+      // function buildSensorsMenu() {
+      //   const acc = document.getElementById("sensor-accordion");
+      //   acc.innerHTML = "";
+
+      //   Object.entries(SENSOR_MAP).forEach(([id, s]) => {
+      //     const details = document.createElement("details");
+
+      //     const summary = document.createElement("summary");
+      //     summary.innerHTML = `
+      //     <input type="checkbox" onchange="toggleSensor('${id}', this.checked)">
+      //     <span style="margin-left:8px">${s.title}</span>
+      //   `;
+
+      //     const content = document.createElement("div");
+      //     content.className = "details-content";
+
+      //     // GPIO inputs
+      //     for (let i = 0; i < s.gpio; i++) {
+      //       content.innerHTML += `
+      //       <div class="row">
+      //         <label>GPIO ${i + 1}</label>
+      //         <input type="number" min="0" max="39" id="${id}_gpio_${i}">
+      //       </div>
+      //     `;
+      //     }
+
+      //     // DS18B20 special block
+      //     if (s.onewire) {
+      //       content.innerHTML += `
+      //       <button class="btn" onclick="scanDS('${id}')">Scan</button>
+      //       <div id="${id}_list"></div>
+      //     `;
+      //     }
+
+      //     details.appendChild(summary);
+      //     details.appendChild(content);
+      //     acc.appendChild(details);
+      //   });
+      // }
+
+      // function toggleSensor(sensorId, state) {
+      //   SENSOR_MAP[sensorId].cards.forEach((cardId) => {
+      //     const el = document.getElementById(cardId);
+      //     if (el) el.style.display = state ? "block" : "none";
+      //   });
+      // }
+
+      // Переключение закладок
+      function openTab(e, n) {
+        document
+          .querySelectorAll(".page")
+          .forEach((p) => p.classList.remove("active"));
+        document
+          .querySelectorAll(".nav-tab")
+          .forEach((t) => t.classList.remove("active"));
+        document.getElementById(n).classList.add("active");
+        e.currentTarget.classList.add("active");
+        getSettings(); // запрос на обновление настроек
+        pollWifiStatus(); // запрос состояния подключения к локальной сети WiFi
+      }
+
+      // Скрытие/отображение содержимого закладок
+      function toggleSets() {
+        const p = document.getElementById("settings-panel");
+        p.style.display = p.style.display === "block" ? "none" : "block";
+      }
+
+      // Скрытие/отображение содержимого меню (аккардеон)
+      function toggleAcc(el) {
+        el.parentElement.nextElementSibling.classList.toggle("show");
+      }
+
+      // /Переключение видимости пароля
+      function togglePass(id) {
+        const el = document.getElementById(id);
+        el.type = el.type === "password" ? "text" : "password";
+      }
+      // const chBox = document.getElementById("checks");
+      // senNames.forEach((n, i) => {
+      //   chBox.innerHTML += `<label style="display:block; margin:8px 0; font-size:13px"><input type="checkbox" id="ch${i}"> ${n}</label>`;
+      // });
+
+      // Добавление нового UserID для Telegram
+      function addUserId(val = "") {
+        if (activeIds >= 6) return;
+        const container = document.getElementById("ids-container");
+        const div = document.createElement("div");
+        div.className = "row";
+        div.innerHTML = `<label>UserID ${
+          activeIds + 1
+        }</label><input id="id${activeIds}" value="${val}" style="flex:1; padding:8px; border:1px solid #ddd; border-radius:6px;">`;
+        container.appendChild(div);
+        activeIds++;
+      }
+      // const maps = [
+      //   ["card-dht-t", "card-dht-h"],
+      //   ["card-lux-5516"],
+      //   ["card-tcrt"],
+      //   ["card-pir"],
+      //   ["card-pres"],
+      //   ["card-bme-t", "card-bme-h", "card-bme-p"],
+      //   ["card-t1", "card-t2", "card-t3", "card-t4"],
+      //   ["card-door"],
+      //   ["card-flood"],
+      // ];
+      // function applyVis(senArray, relEn) {
+      //   senArray.forEach((en, i) => {
+      //     if (maps[i])
+      //       maps[i].forEach((id) => {
+      //         const el = document.getElementById(id);
+      //         if (el) el.style.display = en ? "block" : "none";
+      //       });
+      //   });
+      //   for (let i = 0; i < 4; i++) {
+      //     const el = document.getElementById("card-r" + i);
+      //     if (el) el.style.display = relEn ? "block" : "none";
+      //   }
+      // }
+
+      // Отображение доступных сетей WiFi
+      function scanWiFi() {
+        const n = document.getElementById("nets");
+        n.innerHTML = '<div style="padding:10px">🔎 Scanning...</div>';
+        fetch(`${BASE_URL}/api/wifi-scan`)
+          .then((r) => r.json())
+          .then((d) => {
+            n.innerHTML = "";
+            d.sort((a, b) => b.rssi - a.rssi);
+            d.forEach((x) => {
+              const i = document.createElement("div");
+              i.className = "net-item";
+              let sig = x.rssi > -60 ? "🟢" : x.rssi > -75 ? "🟡" : "🔴";
+              let lock = x.enc ? "🔒" : "🔓";
+              i.innerHTML = `<span>${sig} ${lock} <b>${x.ssid}</b></span> <span style="color:#888">${x.rssi} dBm</span>`;
+              i.onclick = () => {
+                document.getElementById("ssid").value = x.ssid;
+              };
+              n.appendChild(i);
+            });
+          })
+          .catch((e) => {
+            n.innerHTML =
+              '<div style="padding:10px; color:red">Scanning error</div>';
+          });
+      }
+
+      // Получение состояния подключения к локальной сети WiFi
+      function pollWifiStatus() {
+        fetch(`${BASE_URL}/api/wifi-status`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.connected) {
+              document.getElementById("curr-conn").style.display = "block";
+              document.getElementById("cur_ssid").innerText = d.ssid;
+              document.getElementById("cur_ip").innerText = d.ip;
+              document.getElementById("cur_rssi").innerText = d.rssi + " dBm";
+              const url = "http://" + d.ip + "/";
+              const link = document.getElementById("cur_link");
+              link.href = url;
+              link.innerText = url;
+              fetch(`${BASE_URL}/api/ap-disable`);
+            } else {
+              setTimeout(pollWifiStatus, 3000);
+            }
+          });
+      }
+
+      // fetch(`${BASE_URL}/api/get-all`)
+      //   .then((r) => r.json())
+      //   .then((c) => {
+      //     console.log(c);
+      //     // document.getElementById("tg_en").checked = c.tg_en;
+      //     // document.getElementById("m_en").checked = c.m_en;
+      //     // document.getElementById("bme_en").checked = c.bme_en;
+      //     // document.getElementById("dht_en").checked = c.dht_en;
+      //     // document.getElementById("ds_en").checked = c.ds_en;
+      //     // document.getElementById("tcrt_en").checked = c.tcrt_en;
+      //     // document.getElementById("pir_en").checked = c.pir_en;
+      //     // document.getElementById("ld_en").checked = c.ld_en;
+      //     // document.getElementById("door_en").checked = c.door_en;
+      //     // document.getElementById("fl_en").checked = c.fl_en;
+      //     // document.getElementById("5516_en").checked = c.5516_en;
+      //     // document.getElementById("r_en").checked = c.fl_en;
+
+      //     //document.getElementById("tg_en").checked = c["tg_en"];
+      //     //document.getElementById("m_en").checked = c["m_en"];
+      //     document.getElementById("bme_en").checked = c["bme_en"];
+      //     document.getElementById("dht_en").checked = c["dht_en"];
+      //     document.getElementById("ds_en").checked = c["ds_en"];
+      //     document.getElementById("tcrt_en").checked = c["tcrt_en"];
+      //     document.getElementById("pir_en").checked = c["pir_en"];
+      //     document.getElementById("ld_en").checked = c["ld_en"];
+      //     document.getElementById("door_en").checked = c["door_en"];
+      //     document.getElementById("fl_en").checked = c["fl_en"];
+      //     document.getElementById("5516_en").checked = c["5516_en"];
+      //     document.getElementById("r_en").checked = c["r_en"];
+
+      //     document.getElementById("m_ip").value = c.m_ip;
+      //     document.getElementById("m_port").value = c.m_port;
+      //     document.getElementById("m_t").value = c.m_t;
+      //     document.getElementById("m_i").value = c.m_i;
+
+      //     for (let i = 0; i < c.ids_c; i++) addUserId(c.ids[i]);
+      //     if (activeIds === 0) addUserId("");
+      //     // for (let i = 0; i < 9; i++) {
+      //     //   if (document.getElementById("ch" + i))
+      //     //     document.getElementById("ch" + i).checked = c.sen[i];
+      //     // }
+      //     //applyVis(c.sen, c.r_en);
+      //     pollWifiStatus();
+      //   });
+
+      // Запуск периодического запроса состояния РЕЛЕ, период 1 раз в 1 секунду
+      setInterval(() => {
+        fetch(`${BASE_URL}/api/get-relays`)
+          .then((r) => r.json())
+          .then((d) => {
+            d.r.forEach(
+              (v, i) => (document.getElementById("r" + i).checked = v)
+            );
+          });
+      }, 1000);
+
+      // Запуск периодического запроса значений с датчиков, период 1 раз в 2 секунды
+      setInterval(() => {
+        fetch(`${BASE_URL}/api/values`)
+          .then((r) => r.json())
+          .then((v) => {
+            [
+              "in_t",
+              "in_h",
+              "out_t",
+              "out_h",
+              "lux",
+              "lux_out",
+              "t1",
+              "t2",
+            ].forEach((f) => {
+              if (document.getElementById("v_" + f))
+                document.getElementById("v_" + f).innerText = v[f];
+            });
+            const updateStatus = (id, val, tT, tF) => {
+              const el = document.getElementById(id);
+              if (!el) return;
+              el.innerText = val ? tT : tF;
+              el.style.color = val ? "red" : "#007bff";
+            };
+            updateStatus("v_pir", v.pir, "ЕСТЬ", "НЕТ");
+            updateStatus("v_pres", v.pres, "ЕСТЬ", "НЕТ");
+            updateStatus("v_door", v.door, "ОТКР", "ЗАКР");
+            updateStatus("v_flood", v.flood, "ЕСТЬ", "НЕТ");
+          });
+      }, 2000);
+
+      // Отправка запроса на переключение реле
+      function setRelay(idx) {
+        const st = document.getElementById("r" + idx).checked;
+        fetch(`${BASE_URL}/api/set-relay?id=${idx}&st=${st}`);
+      }
+
+      // Отправка SSID/PASS для подключения к локальной сети WiFi
+      function connWiFi() {
+        const f = new FormData();
+        f.append("s", document.getElementById("ssid").value);
+        f.append("p", document.getElementById("w_pass").value);
+        fetch(`${BASE_URL}/api/wifi-connect`, { method: "POST", body: f }).then(
+          () => {
+            alert("Connecting to WiFi...");
+            pollWifiStatus();
+          }
+        );
+      }
+
+      // /* Получение настроек датчиков с сервера */
+      // document.addEventListener("DOMContentLoader", (event) => {
+      //   console.log("DOM full loaded.");
+      //   getSettings();
+      // });
+
+      document.addEventListener("DOMContentLoaded", getSettings());
+
+      function getSettings() {
+        // Выполняем GET запрос к API
+        fetch(`${BASE_URL}/api/get-all`) // Обычно используется get-all для получения всех настроек сразу
+          .then((response) => {
+            if (!response.ok) throw new Error("Ошибка сети");
+            return response.json();
+          })
+          .then((data) => {
+            const switchers = [
+              "tg_en",
+              "m_en",
+              "bme_en",
+              "dht_en",
+              "ds_en",
+              "tcrt_en",
+              "pir_en",
+              "ld_en",
+              "door_en",
+              "fl_en",
+              "5516_en",
+              "r_en",
+            ];
+
+            switchers.forEach((id) => {
+              const element = document.getElementById(id);
+              if (element) element.checked = data[id];
+            });
+
+            document.getElementById("m_ip").value = data[m_ip];
+            document.getElementById("m_port").value = data[m_port];
+            document.getElementById("m_t").value = data[m_t];
+            document.getElementById("m_i").value = data[m_i];
+
+            for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
+            if (activeIds === 0) addUserId("");
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      }
+      function saveSens() {
+        const f = new FormData();
+        f.append("bme_en", document.getElementById("bme_en").checked);
+        f.append("dht_en", document.getElementById("dht_en").checked);
+        f.append("ds_en", document.getElementById("ds_en").checked);
+        f.append("tcrt_en", document.getElementById("tcrt_en").checked);
+        f.append("pir_en", document.getElementById("pir_en").checked);
+        f.append("ld_en", document.getElementById("ld_en").checked);
+        f.append("door_en", document.getElementById("door_en").checked);
+        f.append("fl_en", document.getElementById("fl_en").checked);
+        f.append("5516_en", document.getElementById("5516_en").checked);
+        f.append("r_en", document.getElementById("r_en").checked);
+        fetch(`${BASE_URL}/api/set-sens`, { method: "POST", body: f }).then(
+          () => alert("Сохранено")
+        );
+      }
+      function saveSrv() {
+        const f = new FormData();
+        f.append("tg_en", document.getElementById("tg_en").checked);
+        f.append("tg", document.getElementById("tg_token").value);
+        f.append("ids_c", activeIds);
+        for (let i = 0; i < activeIds; i++)
+          f.append("id" + i, document.getElementById("id" + i).value);
+        f.append("m_en", document.getElementById("mqtt_en").checked);
+        f.append("m_ip", document.getElementById("m_ip").value);
+        f.append("m_port", document.getElementById("m_port").value);
+        f.append("m_u", document.getElementById("m_u").value);
+        f.append("m_p", document.getElementById("m_p").value);
+        f.append("m_t", document.getElementById("m_t").value);
+        f.append("m_i", document.getElementById("m_i").value);
+        f.append("w_u", document.getElementById("w_u").value);
+        f.append("w_p", document.getElementById("w_p").value);
+        fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f }).then(() =>
+          alert("Сохранено")
+        );
+      }
+    </script>
+  </body>
+</html>
+
+)rawliteral";
+
+#endif
