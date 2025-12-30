@@ -9,6 +9,7 @@ struct Config {
 
   struct Services {
     struct {
+      bool enabled = false;
       char ssid[32] = "";
       char pass[64] = "";
       bool ap_mode = true;
@@ -38,7 +39,7 @@ struct Config {
     struct Climate {
       struct {
         bool enabled = false; 
-        char type[4] ="I2C";
+        int pin = 21;
         char labels[3][32]={"Temperature", "Humadity", "Peassure"};
         char units[3][8]={"°C", "%", "Pa"};
         char ui_cards[3][16]={"card-bme-t", "card-bme-h", "card-bme-p"};
@@ -46,7 +47,7 @@ struct Config {
       } bme280;
       struct {
         bool enabled = false; 
-        int pins[1]={15};
+        int pin=15;
         char labels[2][32]={"Temperature", "Humadity"};
         char units[2][8]={"°C", "%"};
         char ui_cards[2][16]={"card-dht-t", "card-dht-h"};
@@ -54,20 +55,20 @@ struct Config {
       } dht22;
       struct {
         bool enabled = false; 
-        int pins[1]={4};
+        int pin=4;
         char macs[4][18]; // MAC-addres DS18B20
         char labels[4][32]={"Radiator 1", "Radiator 2", "Radiator 3", "Radiator 4"};
-        char units[1][8]={"°C"};
+        char units[4][8]={"°C","°C","°C","°C"};
         char ui_cards[4][16]={"card-t1", "card-t2", "card-t3", "card-t4"};
         char topics[4][16]={"/t1", "/t2", "/t3", "/t4"};
       } ds18b20;
       struct {
         bool enabled = false; 
-        char type[4] ="I2C";
-        char labels[1][32]={"Light (TCRT)"};
-        char units[1][8]={"Lux"};
-        char ui_cards[1][16]={"card-tcrt"};
-        char topics[1][16]={"/lux"};
+        int pin = 21;
+        char label[32]="Light (TCRT)";
+        char unit[8]="Lux";
+        char ui_card[16]="card-tcrt";
+        char topic[16]="/lux";
       } tcrt5000;
     } climate;
 
@@ -75,7 +76,6 @@ struct Config {
       struct {
         bool enabled = false; 
         int pin=35;
-        char type[8] ="motion";
         char label[32]="Motion";
         char ui_card[16]="card-pir";
         char topic[16]="/motion";
@@ -83,7 +83,6 @@ struct Config {
       struct {
         bool enabled = false; 
         int pin=35;
-        char type[12] ="presence";
         char label[32]="Presence";
         char ui_card[16]="card-pres";
         char topic[16]="/presence";
@@ -91,7 +90,6 @@ struct Config {
       struct {
         bool enabled = false; 
         int pin=36;
-        char type[8] ="contact";
         char label[32]="Door";
         char ui_card[16]="card-door";
         char topic[16]="/door";
@@ -99,7 +97,6 @@ struct Config {
       struct {
         bool enabled = false; 
         int pin=34;
-        char type[8] ="leak";
         char label[32]="Leak";
         char ui_card[16]="card-flood";
         char topic[16]="/flood";
@@ -110,7 +107,6 @@ struct Config {
       struct {
         bool enabled = false; 
         int pin=39;
-        char type[8] ="light";
         char label[32]="Light (LDR)";
         char ui_card[16]="card-lux-5516";
         char topic[16]="/lux_raw";

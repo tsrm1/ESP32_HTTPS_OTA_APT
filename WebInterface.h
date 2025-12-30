@@ -86,6 +86,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 13px;
         font-weight: 600;
       }
+      .row input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #f3f3f3;
+      }
+
       .btn {
         background: #007bff;
         color: #fff;
@@ -103,9 +111,10 @@ const char index_html[] PROGMEM = R"rawliteral(
         border: none;
         padding: 8px;
         border-radius: 6px;
+        /* max-width: 200px; */
         width: 100%;
         cursor: pointer;
-        margin: 10px 0;
+        /* margin: 10px 0 10px 20px; */
       }
       .pass-wrapper {
         position: relative;
@@ -336,51 +345,63 @@ const char index_html[] PROGMEM = R"rawliteral(
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)"
-                ><b>BME280</b> (Температура, Влажность, Даавление)</span
+                ><b>BME280</b> (Temperature, Humadity, Preassure)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="bme_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="bme_en"
+                  onclick="setSwitcher('bme_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label
-                ><input
-                  type="text"
-                  value="I2C (SDA/SCL)"
-                  readonly
-                  style="background: #eee"
-                />
-              </div>
-              <button class="btn-scan" onclick="scan('bme280')">
-                Search BME280
-              </button>
-              <div id="res_bme280"></div>
-            </div>
+            <div class="acc-panel" id="container_bme"></div>
           </div>
 
           <!-- Sensor DHT22 -->
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)"
-                ><b>DHT22</b> (Температура, Влажность)</span
+                ><b>DHT22</b> (Temperature, Humadity)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="dht_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="dht_en"
+                  onclick="setSwitcher('dht_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="dht_p" />
+            <div class="acc-panel" id="container_dht">
+              <!-- <div class="row">
+                <label>GPIO:</label><input type="number" id="dht_p" readonly />
               </div>
-              <button class="btn-scan" onclick="scan('dht22')">
-                Search DHT22
-              </button>
+              <div class="row">
+                <label>LABEL 1:</label>
+                <input type="text" id="dht_l0" />
+              </div>
+              <div class="row">
+                <label>UNIT 1:</label>
+                <input type="text" id="dht_u0" />
+              </div>
+              <div class="row">
+                <label>TOPIC 1:</label>
+                <input type="text" id="dht_t0" />
+              </div>
+              <div class="row">
+                <label>LABEL 2:</label>
+                <input type="text" id="dht_l1" />
+              </div>
+              <div class="row">
+                <label>UNIT 2:</label>
+                <input type="text" id="dht_u1" />
+              </div>
+              <div class="row">
+                <label>TOPIC 2:</label>
+                <input type="text" id="dht_t1" />
+              </div>
               <div id="res_dht280"></div>
+              <button class="btn-scan" onclick="applySet('dht22')">
+                Apply
+              </button> -->
             </div>
           </div>
 
@@ -388,126 +409,88 @@ const char index_html[] PROGMEM = R"rawliteral(
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)"
-                ><b>DS18B20</b> (Температура)</span
+                ><b>DS18B20</b> (Temperature)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="ds_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="ds_en"
+                  onclick="setSwitcher('ds_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="ds_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('ds18b20')">
-                Search DS18B20
-              </button>
-              <div id="res_ds18b20"></div>
-            </div>
+            <div class="acc-panel" id="container_ds"></div>
           </div>
 
           <!-- Sensor TCRT5000 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>TCRT5000</b> (Освещение)</span>
+              <span onclick="toggleAcc(this)"><b>TCRT5000</b> (Light)</span>
               <label class="switch"
-                ><input type="checkbox" id="tcrt_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="tcrt_en"
+                  onclick="setSwitcher('tcrt_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label
-                ><input
-                  type="text"
-                  value="I2C (SDA/SCL)"
-                  readonly
-                  style="background: #eee"
-                />
-              </div>
-              <button class="btn-scan" onclick="scan('tcrt5000')">
-                Search TCRT5000
-              </button>
-              <div id="res_tcrt5000"></div>
-            </div>
+            <div class="acc-panel" id="container_tcrt"></div>
           </div>
 
           <!-- Sensor PIR -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>PIR</b> (Движение)</span>
+              <span onclick="toggleAcc(this)"><b>PIR</b> (Motion)</span>
               <label class="switch"
-                ><input type="checkbox" id="pir_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="pir_en"
+                  onclick="setSwitcher('pir_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="pir_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('pir')">Search PIR</button>
-              <div id="res_pir"></div>
-            </div>
+            <div class="acc-panel" id="container_pir"></div>
           </div>
 
           <!-- Sensor LD2420 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>LD2420</b> (Присутствие)</span>
+              <span onclick="toggleAcc(this)"><b>LD2420</b> (Presence)</span>
               <label class="switch"
-                ><input type="checkbox" id="ld_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="ld_en"
+                  onclick="setSwitcher('ld_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="ld_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('ld2420')">
-                Search LD2420
-              </button>
-              <div id="res_ld2420"></div>
-            </div>
+            <div class="acc-panel" id="container_ld"></div>
           </div>
 
           <!-- Sensor DOOR -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>DOOR</b> (Дверь)</span>
+              <span onclick="toggleAcc(this)"
+                ><b>Magnetic sensor</b> (Door)</span
+              >
               <label class="switch"
-                ><input type="checkbox" id="door_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="door_en"
+                  onclick="setSwitcher('door_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="door_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('door')">
-                Search DOOR
-              </button>
-              <div id="res_door"></div>
-            </div>
+            <div class="acc-panel" id="container_door"></div>
           </div>
 
           <!-- Sensor FLOOD -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>FLOOD</b> (Затопление)</span>
+              <span onclick="toggleAcc(this)"><b>FLOOD</b> (Flooding)</span>
               <label class="switch"
-                ><input type="checkbox" id="fl_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="fl_en"
+                  onclick="setSwitcher('fl_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="fl_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('flood')">
-                Search FLOOD
-              </button>
-              <div id="res_flood"></div>
-            </div>
+            <div class="acc-panel" id="container_fl"></div>
           </div>
 
           <!-- Sensor Resistor 5516 -->
@@ -517,60 +500,44 @@ const char index_html[] PROGMEM = R"rawliteral(
                 ><b>Resistor 5516</b> (Освещение)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="5516_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="5516_en"
+                  onclick="setSwitcher('5516_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="5516_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('5516')">
-                Search Resistor 5516
-              </button>
-              <div id="res_5516"></div>
-            </div>
+            <div class="acc-panel" id="container_5516"></div>
           </div>
 
           <!-- Sensor RELE -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>RELEx4</b> (Блок реле)</span>
+              <span onclick="toggleAcc(this)"><b>RELEYx4</b> (Relay unit)</span>
               <label class="switch"
-                ><input type="checkbox" id="r_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="r_en"
+                  onclick="setSwitcher('r_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>R1 GPIO:</label><input type="number" id="r_p0" />
-              </div>
-              <div class="row">
-                <label>R2 GPIO:</label><input type="number" id="r_p1" />
-              </div>
-              <div class="row">
-                <label>R3 GPIO:</label><input type="number" id="r_p2" />
-              </div>
-              <div class="row">
-                <label>R4 GPIO:</label><input type="number" id="r_p3" />
-              </div>
-              <button class="btn-scan" onclick="scan('rele')">
-                Инициализировать
-              </button>
-            </div>
+            <div class="acc-panel" id="container_r"></div>
           </div>
         </div>
-        <button class="btn" style="margin-top: 15px" onclick="saveSens()">
-          Save settings :
-        </button>
+        <!-- <button class="btn" style="margin-top: 15px" onclick="saveSens()">Save settings</button> -->
       </div>
 
       <div id="tab-srv" class="page">
         <div class="section">
           <h3>
-            Wi-Fi<label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="wifi_en"
-            /></label>
+            Wi-Fi
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="w_en"
+                onclick="setSwitcher('w_en')"
+              /><span class="slider"></span>
+            </label>
+            <!-- <label style="font-size: 12px; float: right"><input type="checkbox" id="wifi_en"/></label> -->
           </h3>
           <button class="btn" onclick="scanWiFi()">Scan Wi-Fi</button>
           <div
@@ -639,9 +606,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div class="section">
           <h3>
             Telegram
-            <label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="tg_en"
-            /></label>
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="tg_en"
+                onclick="setSwitcher('tg_en')"
+              /><span class="slider"></span>
+            </label>
+            <!-- <label style="font-size: 12px; float: right">Activate <input type="checkbox" id="tg_en"/></label> -->
           </h3>
           <div class="row">
             <label>Bot Token</label
@@ -667,9 +639,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         <div class="section">
           <h3>
             MQTT
-            <label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="mqtt_en"
-            /></label>
+            <label class="switch">
+              <input
+                type="checkbox"
+                id="m_en"
+                onclick="setSwitcher('m_en')"
+              /><span class="slider"></span>
+            </label>
+            <!-- <label style="font-size: 12px; float: right">Activate <input type="checkbox" id="mqtt_en"/></label> -->
           </h3>
           <div class="row">
             <label>Broker IP</label
@@ -711,7 +688,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <div class="row">
             <label>Topic</label
             ><input
-              id="m_t"
+              id="m_bt"
               style="
                 flex: 1;
                 padding: 8px;
@@ -753,7 +730,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       </div>
     </div>
     <script>
-      const BASE_URL = "";
+      const BASE_URL = "http://192.168.18.76";
       let activeIds = 0;
 
       // const SENSOR_MAP = {
@@ -1095,6 +1072,13 @@ const char index_html[] PROGMEM = R"rawliteral(
         fetch(`${BASE_URL}/api/set-relay?id=${idx}&st=${st}`);
       }
 
+      // Отправка запроса на переключение переключателя
+      function setSwitcher(idx) {
+        const f = new FormData();
+        f.append(idx, document.getElementById(idx).checked);
+        fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f });
+      }
+
       // Отправка SSID/PASS для подключения к локальной сети WiFi
       function connWiFi() {
         const f = new FormData();
@@ -1108,13 +1092,77 @@ const char index_html[] PROGMEM = R"rawliteral(
         );
       }
 
-      // /* Получение настроек датчиков с сервера */
-      // document.addEventListener("DOMContentLoader", (event) => {
-      //   console.log("DOM full loaded.");
-      //   getSettings();
-      // });
+      document.addEventListener("DOMContentLoaded", () => {
+        renderSensorsInfo();
+        getSettings();
+      });
 
-      document.addEventListener("DOMContentLoaded", getSettings());
+      function renderSensorsInfo() {
+        const sensList = [
+          // prefix, num of pins, num of values
+          ["bme", 1, 3],
+          ["dht", 1, 2],
+          ["ds", 1, 4],
+          ["tcrt", 1, 1],
+          ["pir", 1, 1],
+          ["ld", 1, 1],
+          ["door", 1, 1],
+          ["fl", 1, 1],
+          ["5516", 1, 1],
+          ["r", 4, 4],
+        ];
+        function generateSensorBlock() {
+          let html = "";
+          for (let i = 0; i < sensList.length; i++) {
+            if (sensList[i][1] == 1)
+              html += `<div class="row"><label>GPIO:</label><input type="text" id="${sensList[i][0]}_p"/></div>`;
+            else
+              for (let j = 0; j < sensList[i][1]; j++)
+                html += `<div class="row"><label>GPIO ${
+                  j + 1
+                }:</label><input type="text" id="${
+                  sensList[i][0]
+                }_p${j}"/></div>`;
+
+            if (sensList[i][2] == 1) {
+              html += `
+                <div class="row">
+                    <label>LABEL:</label>
+                    <input type="text" id="${sensList[i][0]}_l" />
+                </div>
+                <div class="row">
+                    <label>UNIT:</label>
+                    <input type="text" id="${sensList[i][0]}_u" />
+                </div>
+                <div class="row">
+                    <label>TOPIC:</label>
+                    <input type="text" id="${sensList[i][0]}_t" />
+                </div>`;
+            } else
+              for (let j = 0; j < sensList[i][2]; j++) {
+                html += `
+                  <div class="row">
+                      <label>LABEL ${j + 1}:</label>
+                      <input type="text" id="${sensList[i][0]}_l${j}" />
+                  </div>
+                  <div class="row">
+                      <label>UNIT ${j + 1}:</label>
+                      <input type="text" id="${sensList[i][0]}_u${j}" />
+                  </div>
+                  <div class="row">
+                      <label>TOPIC ${j + 1}:</label>
+                      <input type="text" id="${sensList[i][0]}_t${j}" />
+                  </div>`;
+              }
+            html += `<button class="btn-scan" onclick="applySet('${sensList[i][0]}')">Apply</button>`;
+            document.getElementById(`container_${sensList[i][0]}`).innerHTML =
+              html;
+            //console.log(html);
+            html = "";
+          }
+        }
+        generateSensorBlock();
+      }
 
       function getSettings() {
         // Выполняем GET запрос к API
@@ -1125,6 +1173,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           })
           .then((data) => {
             const switchers = [
+              "w_en",
               "tg_en",
               "m_en",
               "bme_en",
@@ -1139,18 +1188,88 @@ const char index_html[] PROGMEM = R"rawliteral(
               "r_en",
             ];
 
+            const values = [
+              "bme_p",
+              "dht_p",
+              "ds_p",
+              "tcrt_p",
+              "tcrt_l",
+              "tcrt_u",
+              "tcrt_t",
+              "pir_p",
+              "pir_l",
+              "pir_t",
+              "ld_p",
+              "ld_l",
+              "ld_t",
+              "door_p",
+              "door_l",
+              "door_t",
+              "fl_p",
+              "fl_l",
+              "fl_t",
+              "5516_p",
+              "5516_l",
+              "5516_t",
+              "5516_t",
+              "m_ip",
+              "m_port",
+              "m_bt",
+              "m_i",
+            ];
+
+            const arrays = [
+              "bme_l",
+              "bme_u",
+              "bme_t",
+              "dht_l",
+              "dht_u",
+              "dht_t",
+              "ds_l",
+              "ds_u",
+              "ds_t",
+              "r_p",
+              "r_l",
+              "r_t",
+            ];
+
             switchers.forEach((id) => {
               const element = document.getElementById(id);
               if (element) element.checked = data[id];
             });
 
-            document.getElementById("m_ip").value = data[m_ip];
-            document.getElementById("m_port").value = data[m_port];
-            document.getElementById("m_t").value = data[m_t];
-            document.getElementById("m_i").value = data[m_i];
+            values.forEach((id) => {
+              const element = document.getElementById(id);
+              if (element) element.value = data[id];
+            });
 
-            for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
-            if (activeIds === 0) addUserId("");
+            arrays.forEach((key) => {
+              if (data[key] && Array.isArray(data[key])) {
+                // console.log(`Ключ: ${key}`, data[key]);
+                for (let i = 0; i < data[key].length; i++) {
+                  const element = document.getElementById(`${key + i}`);
+                  if (element) element.value = data[key][i];
+                }
+
+                // // Если нужно перебрать элементы внутри каждого массива:
+                // data[key].forEach((item, index) => {
+                //   console.log(`  [${index}]: ${item}`);
+                // });
+              }
+            });
+
+            // for (let i = 0; i < 4; i++) {
+            //   const element = document.getElementById(`r_p${i}`);
+            //   if (element) element.value = data.r_p[i];
+            // }
+
+            // document.getElementById("m_ip").value = data[m_ip];
+            // document.getElementById("m_port").value = data[m_port];
+            // document.getElementById("m_t").value = data[m_t];
+            // document.getElementById("m_i").value = data[m_i];
+
+            // for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
+            // if (activeIds === 0) addUserId("");
           })
           .catch((error) => {
             console.error(error);
@@ -1174,20 +1293,21 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
       function saveSrv() {
         const f = new FormData();
+        f.append("w_en", document.getElementById("w_en").checked);
         f.append("tg_en", document.getElementById("tg_en").checked);
-        f.append("tg", document.getElementById("tg_token").value);
-        f.append("ids_c", activeIds);
+        f.append("tg_t", document.getElementById("tg_token").value);
+        f.append("tg_ids", activeIds);
         for (let i = 0; i < activeIds; i++)
           f.append("id" + i, document.getElementById("id" + i).value);
-        f.append("m_en", document.getElementById("mqtt_en").checked);
+        f.append("m_en", document.getElementById("m_en").checked);
         f.append("m_ip", document.getElementById("m_ip").value);
         f.append("m_port", document.getElementById("m_port").value);
         f.append("m_u", document.getElementById("m_u").value);
         f.append("m_p", document.getElementById("m_p").value);
-        f.append("m_t", document.getElementById("m_t").value);
+        f.append("m_bt", document.getElementById("m_t").value);
         f.append("m_i", document.getElementById("m_i").value);
-        f.append("w_u", document.getElementById("w_u").value);
-        f.append("w_p", document.getElementById("w_p").value);
+        // f.append("w_u", document.getElementById("w_u").value);
+        // f.append("w_p", document.getElementById("w_p").value);
         fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f }).then(() =>
           alert("Сохранено")
         );
@@ -1195,6 +1315,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </script>
   </body>
 </html>
+
 
 )rawliteral";
 

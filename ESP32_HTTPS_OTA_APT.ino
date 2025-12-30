@@ -74,9 +74,10 @@ bool loadConfig() {
 
   // --- SERVICES ---
   // WiFi
-  strlcpy(config.services.wifi.ssid, doc["s_ssid"] | "", 32);
-  strlcpy(config.services.wifi.pass, doc["s_pass"] | "", 64);
-  config.services.wifi.ap_mode = doc["s_ap"] | true;
+  config.services.wifi.enabled = doc["w_en"] | false;
+  strlcpy(config.services.wifi.ssid, doc["w_ssid"] | "", 32);
+  strlcpy(config.services.wifi.pass, doc["w_pass"] | "", 64);
+  config.services.wifi.ap_mode = doc["w_ap"] | true;
 
   // Web
   strlcpy(config.services.web.user, doc["u_l"] | "admin", 32);
@@ -107,7 +108,8 @@ bool loadConfig() {
   char bme_cards[3][16] = {"card-bme-t", "card-bme-h", "card-bme-p"};
   char bme_topics[3][16] = {"/bme-t", "/bme-h", "/bme-p"};
   config.nodes.climate.bme280.enabled = doc["bme_en"] | false;
-  strlcpy(config.nodes.climate.bme280.type, doc["bme_type"] | "I2C", 4);
+  config.nodes.climate.bme280.pin = doc["bme_p"] | 21;
+  //strlcpy(config.nodes.climate.bme280.type, doc["bme_type"] | "I2C", 4);
   for (int i = 0; i < 3; i++) {
     strlcpy(config.nodes.climate.bme280.labels[i], doc["bme_l"][i] | labels[i], 32);
     strlcpy(config.nodes.climate.bme280.units[i], doc["bme_u"][i] | units[i], 8);
@@ -116,10 +118,10 @@ bool loadConfig() {
   }
 
   // DHT22  
-  char dht_cards[3][16] = {"card-dht-t", "card-dht-h"};
-  char dht_topics[3][16] = {"/dht-t", "/dht-h"};
+  char dht_cards[2][16] = {"card-dht-t", "card-dht-h"};
+  char dht_topics[2][16] = {"/dht-t", "/dht-h"};
   config.nodes.climate.dht22.enabled = doc["dht_en"] | false;
-  config.nodes.climate.dht22.pins[0] = doc["dht_p"][0] | 15;
+  config.nodes.climate.dht22.pin = doc["dht_p"] | 15;
   for (int i = 0; i < 2; i++) {
     strlcpy(config.nodes.climate.dht22.labels[i], doc["dht_l"][i] | labels[i], 32);
     strlcpy(config.nodes.climate.dht22.units[i], doc["dht_u"][i] | units[i], 8);
@@ -131,44 +133,42 @@ bool loadConfig() {
   char ds_labels[4][32] = {"Radiator 1", "Radiator 2", "Radiator 3", "Radiator 4"};
   char ds_cards[4][16] = {"card-t1", "card-t2", "card-t3", "card-t4"};
   char ds_topics[4][16] = {"/t1", "/t2", "/t3", "/t4"};
+  char ds_units[4][8] = {"°C","°C","°C","°C"};
   config.nodes.climate.ds18b20.enabled = doc["ds_en"] | false;
-  config.nodes.climate.ds18b20.pins[0] = doc["ds_p"][0] | 4;
-  strlcpy(config.nodes.climate.ds18b20.units[0], doc["ds_u"][0] | units[0], 8);
+  config.nodes.climate.ds18b20.pin = doc["ds_p"] | 4;
   for (int i = 0; i < 4; i++) {
     strlcpy(config.nodes.climate.ds18b20.macs[i], doc["ds_m"][i] | "", 18);
     strlcpy(config.nodes.climate.ds18b20.labels[i], doc["ds_l"][i] | labels[i], 32);
     strlcpy(config.nodes.climate.ds18b20.ui_cards[i], doc["ds_c"][i] | ds_cards[i], 16);
     strlcpy(config.nodes.climate.ds18b20.topics[i], doc["ds_t"][i] | ds_topics[i], 16);  
+    strlcpy(config.nodes.climate.ds18b20.units[i], doc["ds_u"][i] | ds_units[i], 8);
   }
 
   // TCRT5000
   config.nodes.climate.tcrt5000.enabled = doc["tcrt_en"] | false;
-  strlcpy(config.nodes.climate.tcrt5000.type, doc["bme_type"] | "I2C", 4);
-  strlcpy(config.nodes.climate.tcrt5000.labels[0], doc["tcrt_l"][0] | "Освещение (TCRT)", 32);
-  strlcpy(config.nodes.climate.tcrt5000.units[0], doc["tcrt_u"][0] | "Lux", 8);
-  strlcpy(config.nodes.climate.tcrt5000.ui_cards[0], doc["tcrt_c"][0] | "card-tcrt", 16);
-  strlcpy(config.nodes.climate.tcrt5000.topics[0], doc["tcrt_t"][0] | "/lux", 16);  
+  config.nodes.climate.tcrt5000.pin = doc["tcrt_pin"] | 21;
+  strlcpy(config.nodes.climate.tcrt5000.label, doc["tcrt_l"] | "Освещение (TCRT)", 32);
+  strlcpy(config.nodes.climate.tcrt5000.unit, doc["tcrt_u"] | "Lux", 8);
+  strlcpy(config.nodes.climate.tcrt5000.ui_card, doc["tcrt_c"] | "card-tcrt", 16);
+  strlcpy(config.nodes.climate.tcrt5000.topic, doc["tcrt_t"] | "/lux", 16);  
   // --- NODES: BINARY ---
   // PIR
   config.nodes.binary.pir.enabled = doc["pir_en"] | false;
   config.nodes.binary.pir.pin = doc["pir_p"] | 35;
-  strlcpy(config.nodes.binary.pir.type, doc["pir_type"] | "motion", 8);
   strlcpy(config.nodes.binary.pir.label, doc["pir_l"] | "Motion", 32);
   strlcpy(config.nodes.binary.pir.ui_card, doc["pir_c"] | "card-pir", 16);
   strlcpy(config.nodes.binary.pir.topic, doc["pir_t"] | "/motion", 16);
 
   // LD2420
-  config.nodes.binary.ld2420.enabled = doc["ld24_en"] | false;
-  config.nodes.binary.ld2420.pin = doc["ld24_p"] | 35;
-  strlcpy(config.nodes.binary.ld2420.type, doc["ld24_type"] | "presence", 12);
-  strlcpy(config.nodes.binary.ld2420.label, doc["ld24_l"] | "Presence", 32);
-  strlcpy(config.nodes.binary.ld2420.ui_card, doc["ld24_c"] | "card-pres", 16);
-  strlcpy(config.nodes.binary.ld2420.topic, doc["ld24_t"] | "/presence", 16);
+  config.nodes.binary.ld2420.enabled = doc["ld_en"] | false;
+  config.nodes.binary.ld2420.pin = doc["ld_p"] | 35;
+  strlcpy(config.nodes.binary.ld2420.label, doc["ld_l"] | "Presence", 32);
+  strlcpy(config.nodes.binary.ld2420.ui_card, doc["ld_c"] | "card-pres", 16);
+  strlcpy(config.nodes.binary.ld2420.topic, doc["ld_t"] | "/presence", 16);
 
   // Door
   config.nodes.binary.door.enabled = doc["door_en"] | false;
   config.nodes.binary.door.pin = doc["door_p"] | 36;
-  strlcpy(config.nodes.binary.door.type, doc["door_type"] | "contact", 8);
   strlcpy(config.nodes.binary.door.label, doc["door_l"] | "Door", 32);
   strlcpy(config.nodes.binary.door.ui_card, doc["door_c"] | "card-door", 16);
   strlcpy(config.nodes.binary.door.topic, doc["door_t"] | "/door", 16);
@@ -176,7 +176,6 @@ bool loadConfig() {
   // Flood
   config.nodes.binary.flood.enabled = doc["fl_en"] | false;
   config.nodes.binary.flood.pin = doc["fl_p"] | 34;
-  strlcpy(config.nodes.binary.flood.type, doc["fl_type"] | "leak", 8);
   strlcpy(config.nodes.binary.flood.label, doc["fl_l"] | "Leak", 32);
   strlcpy(config.nodes.binary.flood.ui_card, doc["fl_c"] | "card-flood", 16);
   strlcpy(config.nodes.binary.flood.topic, doc["fl_t"] | "/flood", 16);
@@ -184,7 +183,6 @@ bool loadConfig() {
   // --- NODES: ANALOG ---
   config.nodes.analog.light_resistor.enabled = doc["5516_en"] | false;
   config.nodes.analog.light_resistor.pin = doc["5516_p"] | 39;
-  strlcpy(config.nodes.analog.light_resistor.type, doc["5516_type"] | "light", 8);
   strlcpy(config.nodes.analog.light_resistor.label, doc["5516_l"] | "Light (LDR)", 32);
   strlcpy(config.nodes.analog.light_resistor.ui_card, doc["5516_c"] | "card-lux-5516", 16);
   strlcpy(config.nodes.analog.light_resistor.topic, doc["5516_t"] | "/lux_raw", 16);
@@ -216,9 +214,10 @@ bool saveConfig() {
   doc["s_rbi"] = config.system.reboot_interval;
 
   // --- SERVICES ---
-  doc["s_ssid"] = config.services.wifi.ssid;
-  doc["s_pass"] = config.services.wifi.pass;
-  doc["s_ap"] = config.services.wifi.ap_mode;
+  doc["w_en"] = config.services.wifi.enabled;
+  doc["w_ssid"] = config.services.wifi.ssid;
+  doc["w_pass"] = config.services.wifi.pass;
+  doc["w_ap"] = config.services.wifi.ap_mode;
 
   doc["u_l"] = config.services.web.user;
   doc["u_p"] = config.services.web.pass;
@@ -240,7 +239,7 @@ bool saveConfig() {
   // --- NODES: CLIMATE ---
   // BME280
   doc["bme_en"] = config.nodes.climate.bme280.enabled;
-  doc["bme_type"] = config.nodes.climate.bme280.type;
+  doc["bme_p"] = config.nodes.climate.bme280.pin;
   JsonArray bme_l = doc.createNestedArray("bme_l");
   JsonArray bme_u = doc.createNestedArray("bme_u");
   JsonArray bme_c = doc.createNestedArray("bme_c");
@@ -254,8 +253,7 @@ bool saveConfig() {
 
   // DHT22
   doc["dht_en"] = config.nodes.climate.dht22.enabled;
-  JsonArray dht_p = doc.createNestedArray("dht_p");
-  dht_p.add(config.nodes.climate.dht22.pins[0]);
+  doc["dht_p"] = config.nodes.climate.dht22.pin;
   JsonArray dht_l = doc.createNestedArray("dht_l");
   JsonArray dht_u = doc.createNestedArray("dht_u");
   JsonArray dht_c = doc.createNestedArray("dht_c");
@@ -269,15 +267,14 @@ bool saveConfig() {
 
   // DS18B20
   doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
-  JsonArray ds_p = doc.createNestedArray("ds_p");
-  ds_p.add(config.nodes.climate.ds18b20.pins[0]);
+  doc["ds_p"] = config.nodes.climate.ds18b20.pin;
   JsonArray ds_u = doc.createNestedArray("ds_u");
-  ds_u.add(config.nodes.climate.ds18b20.units[0]);
   JsonArray ds_m = doc.createNestedArray("ds_m");
   JsonArray ds_l = doc.createNestedArray("ds_l");
   JsonArray ds_c = doc.createNestedArray("ds_c");
   JsonArray ds_t = doc.createNestedArray("ds_t");
   for (int i = 0; i < 4; i++) {
+    ds_u.add(config.nodes.climate.ds18b20.units[i]);
     ds_m.add(config.nodes.climate.ds18b20.macs[i]);
     ds_l.add(config.nodes.climate.ds18b20.labels[i]);
     ds_c.add(config.nodes.climate.ds18b20.ui_cards[i]);
@@ -286,37 +283,30 @@ bool saveConfig() {
 
   // TCRT5000
   doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
-  doc["tcrt_type"] = config.nodes.climate.tcrt5000.type;
-  JsonArray tcrt_l = doc.createNestedArray("tcrt_l");
-  tcrt_l.add(config.nodes.climate.tcrt5000.labels[0]);
-  JsonArray tcrt_u = doc.createNestedArray("tcrt_u");
-  tcrt_u.add(config.nodes.climate.tcrt5000.units[0]);
-  JsonArray tcrt_c = doc.createNestedArray("tcrt_c");
-  tcrt_c.add(config.nodes.climate.tcrt5000.ui_cards[0]);
-  JsonArray tcrt_t = doc.createNestedArray("tcrt_t");
-  tcrt_t.add(config.nodes.climate.tcrt5000.topics[0]);
+  doc["tcrt_p"] = config.nodes.climate.tcrt5000.pin;
+  doc["tcrt_l"] = config.nodes.climate.tcrt5000.label;
+  doc["tcrt_u"] = config.nodes.climate.tcrt5000.unit;
+  doc["tcrt_c"] = config.nodes.climate.tcrt5000.ui_card;
+  doc["tcrt_t"] = config.nodes.climate.tcrt5000.topic;
 
   // --- NODES: BINARY ---
   // PIR
   doc["pir_en"] = config.nodes.binary.pir.enabled;
   doc["pir_p"] = config.nodes.binary.pir.pin;
-  doc["pir_type"] = config.nodes.binary.pir.type;
   doc["pir_l"] = config.nodes.binary.pir.label;
   doc["pir_c"] = config.nodes.binary.pir.ui_card;
   doc["pir_t"] = config.nodes.binary.pir.topic;
 
   // LD2420
-  doc["ld24_en"] = config.nodes.binary.ld2420.enabled;
-  doc["ld24_p"] = config.nodes.binary.ld2420.pin;
-  doc["ld24_type"] = config.nodes.binary.ld2420.type;
-  doc["ld24_l"] = config.nodes.binary.ld2420.label;
-  doc["ld24_c"] = config.nodes.binary.ld2420.ui_card;
-  doc["ld24_t"] = config.nodes.binary.ld2420.topic;
+  doc["ld_en"] = config.nodes.binary.ld2420.enabled;
+  doc["ld_p"] = config.nodes.binary.ld2420.pin;
+  doc["ld_l"] = config.nodes.binary.ld2420.label;
+  doc["ld_c"] = config.nodes.binary.ld2420.ui_card;
+  doc["ld_t"] = config.nodes.binary.ld2420.topic;
 
   // Door
   doc["door_en"] = config.nodes.binary.door.enabled;
   doc["door_p"] = config.nodes.binary.door.pin;
-  doc["door_type"] = config.nodes.binary.door.type;
   doc["door_l"] = config.nodes.binary.door.label;
   doc["door_c"] = config.nodes.binary.door.ui_card;
   doc["door_t"] = config.nodes.binary.door.topic;
@@ -324,7 +314,6 @@ bool saveConfig() {
   // Flood
   doc["fl_en"] = config.nodes.binary.flood.enabled;
   doc["fl_p"] = config.nodes.binary.flood.pin;
-  doc["fl_type"] = config.nodes.binary.flood.type;
   doc["fl_l"] = config.nodes.binary.flood.label;
   doc["fl_c"] = config.nodes.binary.flood.ui_card;
   doc["fl_t"] = config.nodes.binary.flood.topic;
@@ -332,7 +321,6 @@ bool saveConfig() {
   // --- NODES: ANALOG ---
   doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
   doc["5516_p"] = config.nodes.analog.light_resistor.pin;
-  doc["5516_type"] = config.nodes.analog.light_resistor.type;
   doc["5516_l"] = config.nodes.analog.light_resistor.label;
   doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
   doc["5516_t"] = config.nodes.analog.light_resistor.topic;
@@ -356,7 +344,7 @@ bool saveConfig() {
 
   configFile.close();
   // printConfigFile();
-  Serial.println("Settings saved. OK!");
+  Serial.println("Settings saved. OK.");
   return true;
 }
 
@@ -431,9 +419,10 @@ void setupAPI() {
     doc["s_rbi"] = config.system.reboot_interval;
 
     // --- Services: WiFi & Web ---
-    doc["s_ssid"] = config.services.wifi.ssid;
-    //doc["s_pass"] = config.services.wifi.pass;
-    doc["s_ap"]   = config.services.wifi.ap_mode;
+    doc["w_en"] = config.services.wifi.enabled;
+    doc["w_ssid"] = config.services.wifi.ssid;
+    //doc["w_pass"] = config.services.wifi.pass;
+    doc["w_ap"]   = config.services.wifi.ap_mode;
     //doc["u_l"]    = config.services.web.user;
     //doc["u_p"]    = config.services.web.pass;
 
@@ -456,46 +445,87 @@ void setupAPI() {
     // --- Nodes: Climate ---
     // --- BME ---
     doc["bme_en"] = config.nodes.climate.bme280.enabled;
+    doc["bme_p"] = config.nodes.climate.bme280.pin;
+    JsonArray bme_l = doc.createNestedArray("bme_l");
+    for(int i=0; i<3; i++) bme_l.add(config.nodes.climate.bme280.labels[i]);
+    JsonArray bme_u = doc.createNestedArray("bme_u");
+    for(int i=0; i<3; i++) bme_u.add(config.nodes.climate.bme280.units[i]);
+    JsonArray bme_t = doc.createNestedArray("bme_t");
+    for(int i=0; i<3; i++) bme_t.add(config.nodes.climate.bme280.topics[i]);
+
 
     // --- DHT ---
     doc["dht_en"] = config.nodes.climate.dht22.enabled;
-    doc["dht_p"][0] = config.nodes.climate.dht22.pins[0];
-    
+    doc["dht_p"] = config.nodes.climate.dht22.pin;
+    JsonArray dht_l = doc.createNestedArray("dht_l");
+    for(int i=0; i<2; i++) dht_l.add(config.nodes.climate.dht22.labels[i]);
+    JsonArray dht_u = doc.createNestedArray("dht_u");
+    for(int i=0; i<2; i++) dht_u.add(config.nodes.climate.dht22.units[i]);
+    JsonArray dht_t = doc.createNestedArray("dht_t");
+    for(int i=0; i<2; i++) dht_t.add(config.nodes.climate.dht22.topics[i]);
+
     // --- DS18B20 ---
     doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
-    doc["ds_p"][0] = config.nodes.climate.ds18b20.pins[0];
+    doc["ds_p"] = config.nodes.climate.ds18b20.pin;
     JsonArray ds_m = doc.createNestedArray("ds_m");
     for(int i=0; i<4; i++) ds_m.add(config.nodes.climate.ds18b20.macs[i]);
-    
+    JsonArray ds_l = doc.createNestedArray("ds_l");
+    for(int i=0; i<4; i++) ds_l.add(config.nodes.climate.ds18b20.labels[i]);
+    JsonArray ds_u = doc.createNestedArray("ds_u");
+    for(int i=0; i<4; i++) ds_u.add(config.nodes.climate.ds18b20.units[i]);
+    JsonArray ds_t = doc.createNestedArray("ds_t");
+    for(int i=0; i<4; i++) ds_t.add(config.nodes.climate.ds18b20.topics[i]);
+
+
+
+
     // --- TCRT5000 ---
     doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
+    doc["tcrt_p"] = config.nodes.climate.tcrt5000.pin;
+    doc["tcrt_l"] = config.nodes.climate.tcrt5000.label;
+    doc["tcrt_u"] = config.nodes.climate.tcrt5000.unit;
+    doc["tcrt_t"] = config.nodes.climate.tcrt5000.topic;
 
     // --- Nodes: Binary ---
     // --- SR501 ---
     doc["pir_en"]  = config.nodes.binary.pir.enabled;
     doc["pir_p"]   = config.nodes.binary.pir.pin;
+    doc["pir_l"]   = config.nodes.binary.pir.label;
+    doc["pir_t"]   = config.nodes.binary.pir.topic;
 
     // --- LD2420 ---
-    doc["ld24_en"] = config.nodes.binary.ld2420.enabled;
-    doc["ld24_p"]  = config.nodes.binary.ld2420.pin;
+    doc["ld_en"] = config.nodes.binary.ld2420.enabled;
+    doc["ld_p"]  = config.nodes.binary.ld2420.pin;
+    doc["ld_l"] = config.nodes.binary.ld2420.label;
+    doc["ld_t"]  = config.nodes.binary.ld2420.topic;
 
     // --- Door ---
     doc["door_en"] = config.nodes.binary.door.enabled;
     doc["door_p"]  = config.nodes.binary.door.pin;
+    doc["door_l"] = config.nodes.binary.door.label;
+    doc["door_t"]  = config.nodes.binary.door.topic;
 
     // --- Flood ---
     doc["fl_en"]   = config.nodes.binary.flood.enabled;
     doc["fl_p"]    = config.nodes.binary.flood.pin;
+    doc["fl_l"]   = config.nodes.binary.flood.label;
+    doc["fl_t"]    = config.nodes.binary.flood.topic;
 
     // --- Nodes: Analog ---
     // --- Resistor 5516 ---
     doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
     doc["5516_p"]  = config.nodes.analog.light_resistor.pin;
+    doc["5516_l"] = config.nodes.analog.light_resistor.label;
+    doc["5516_t"]  = config.nodes.analog.light_resistor.topic;
 
     // --- Nodes: Actuators (Relays) ---
     doc["r_en"] = config.nodes.actuators.relays.enabled;
     JsonArray r_p = doc.createNestedArray("r_p");
     for(int i=0; i<4; i++) r_p.add(config.nodes.actuators.relays.pins[i]);
+    JsonArray r_l = doc.createNestedArray("r_l");
+    for(int i=0; i<4; i++) r_l.add(config.nodes.actuators.relays.labels[i]);
+    JsonArray r_t = doc.createNestedArray("r_t");
+    for(int i=0; i<4; i++) r_t.add(config.nodes.actuators.relays.topics[i]);
 
     // Сериализация
     String responseData;
@@ -623,6 +653,28 @@ void setupAPI() {
     }
   });
   server.on("/api/set-srv", HTTP_POST, [](AsyncWebServerRequest *request){
+    // Активация и деактивация сенсоров, переключатели
+    if(request->hasParam("bme_en", true)) 
+        config.nodes.climate.bme280.enabled = (request->getParam("bme_en", true)->value() == "true");
+    if(request->hasParam("dht_en", true)) 
+        config.nodes.climate.dht22.enabled = (request->getParam("dht_en", true)->value() == "true");
+    if(request->hasParam("ds_en", true)) 
+        config.nodes.climate.ds18b20.enabled = (request->getParam("ds_en", true)->value() == "true");
+    if(request->hasParam("tcrt_en", true)) 
+        config.nodes.climate.tcrt5000.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+    if(request->hasParam("pir_en", true)) 
+        config.nodes.binary.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    if(request->hasParam("ld_en", true)) 
+        config.nodes.binary.ld2420.enabled = (request->getParam("ld_en", true)->value() == "true");
+    if(request->hasParam("door_en", true)) 
+        config.nodes.binary.door.enabled = (request->getParam("door_en", true)->value() == "true");
+    if(request->hasParam("fl_en", true)) 
+        config.nodes.binary.flood.enabled = (request->getParam("fl_en", true)->value() == "true");
+    if(request->hasParam("5516_en", true)) 
+        config.nodes.analog.light_resistor.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("r_en", true)) 
+        config.nodes.actuators.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+
     // --- 1. Системные настройки (System) ---
     if(request->hasParam("s_dn", true)) 
         strlcpy(config.system.device_name, request->getParam("s_dn", true)->value().c_str(), 32);
@@ -630,12 +682,14 @@ void setupAPI() {
         config.system.reboot_interval = request->getParam("s_rbi", true)->value().toInt();
 
     // --- 2. WiFi и Web-авторизация (Services) ---
-    if(request->hasParam("s_ssid", true)) 
-        strlcpy(config.services.wifi.ssid, request->getParam("s_ssid", true)->value().c_str(), 32);
-    if(request->hasParam("s_pass", true)) 
-        strlcpy(config.services.wifi.pass, request->getParam("s_pass", true)->value().c_str(), 64);
-    if(request->hasParam("s_ap", true)) 
-        config.services.wifi.ap_mode = (request->getParam("s_ap", true)->value() == "true");
+    if(request->hasParam("w_en", true)) 
+        config.services.wifi.enabled = (request->getParam("w_en", true)->value() == "true");
+    if(request->hasParam("w_ssid", true)) 
+        strlcpy(config.services.wifi.ssid, request->getParam("w_ssid", true)->value().c_str(), 32);
+    if(request->hasParam("w_pass", true)) 
+        strlcpy(config.services.wifi.pass, request->getParam("w_pass", true)->value().c_str(), 64);
+    if(request->hasParam("w_ap", true)) 
+        config.services.wifi.ap_mode = (request->getParam("w_ap", true)->value() == "true");
     
     if(request->hasParam("u_l", true)) 
         strlcpy(config.services.web.user, request->getParam("u_l", true)->value().c_str(), 32);
