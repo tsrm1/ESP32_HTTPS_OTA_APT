@@ -101,103 +101,84 @@ bool loadConfig() {
   config.services.mqtt.interval = doc["m_i"] | 5;
 
   // --- NODES: CLIMATE ---
-  char labels[3][32] = {"Temperature", "Humadity", "Peassure"};
-  char units[3][8] = {"°C", "%", "Pa"};
+  char labels[3][32] = {"Temperature, °C", "Humadity, %", "Pressure, Pa"};
   
   // BME280
-  char bme_cards[3][16] = {"card-bme-t", "card-bme-h", "card-bme-p"};
   char bme_topics[3][16] = {"/bme-t", "/bme-h", "/bme-p"};
-  config.nodes.climate.bme280.enabled = doc["bme_en"] | false;
-  config.nodes.climate.bme280.pin = doc["bme_p"] | 21;
+  config.sensors.bme.enabled = doc["bme_en"] | false;
+  config.sensors.bme.pins[0] = doc["bme_p"][0] | 21;
   //strlcpy(config.nodes.climate.bme280.type, doc["bme_type"] | "I2C", 4);
   for (int i = 0; i < 3; i++) {
-    strlcpy(config.nodes.climate.bme280.labels[i], doc["bme_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.bme280.units[i], doc["bme_u"][i] | units[i], 8);
-    strlcpy(config.nodes.climate.bme280.ui_cards[i], doc["bme_c"][i] | bme_cards[i], 16);
-    strlcpy(config.nodes.climate.bme280.topics[i], doc["bme_t"][i] | bme_topics[i], 16);
+    strlcpy(config.sensors.bme.labels[i], doc["bme_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.bme.topics[i], doc["bme_t"][i] | bme_topics[i], 16);
   }
 
   // DHT22  
-  char dht_cards[2][16] = {"card-dht-t", "card-dht-h"};
   char dht_topics[2][16] = {"/dht-t", "/dht-h"};
-  config.nodes.climate.dht22.enabled = doc["dht_en"] | false;
-  config.nodes.climate.dht22.pin = doc["dht_p"] | 15;
+  config.sensors.dht.enabled = doc["dht_en"] | false;
+  config.sensors.dht.pins[0] = doc["dht_p"][0] | 15;
   for (int i = 0; i < 2; i++) {
-    strlcpy(config.nodes.climate.dht22.labels[i], doc["dht_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.dht22.units[i], doc["dht_u"][i] | units[i], 8);
-    strlcpy(config.nodes.climate.dht22.ui_cards[i], doc["dht_c"][i] | dht_cards[i], 16);
-    strlcpy(config.nodes.climate.dht22.topics[i], doc["dht_t"][i] | dht_topics[i], 16);
+    strlcpy(config.sensors.dht.labels[i], doc["dht_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.dht.topics[i], doc["dht_t"][i] | dht_topics[i], 16);
   }
 
   // DS18B20
   char ds_labels[4][32] = {"Radiator 1", "Radiator 2", "Radiator 3", "Radiator 4"};
-  char ds_cards[4][16] = {"card-t1", "card-t2", "card-t3", "card-t4"};
   char ds_topics[4][16] = {"/t1", "/t2", "/t3", "/t4"};
-  char ds_units[4][8] = {"°C","°C","°C","°C"};
-  config.nodes.climate.ds18b20.enabled = doc["ds_en"] | false;
-  config.nodes.climate.ds18b20.pin = doc["ds_p"] | 4;
+  config.sensors.ds.enabled = doc["ds_en"] | false;
+  config.sensors.ds.pins[0] = doc["ds_p"][0] | 4;
   for (int i = 0; i < 4; i++) {
-    strlcpy(config.nodes.climate.ds18b20.macs[i], doc["ds_m"][i] | "", 18);
-    strlcpy(config.nodes.climate.ds18b20.labels[i], doc["ds_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.ds18b20.ui_cards[i], doc["ds_c"][i] | ds_cards[i], 16);
-    strlcpy(config.nodes.climate.ds18b20.topics[i], doc["ds_t"][i] | ds_topics[i], 16);  
-    strlcpy(config.nodes.climate.ds18b20.units[i], doc["ds_u"][i] | ds_units[i], 8);
+    strlcpy(config.sensors.ds.macs[i], doc["ds_m"][i] | "", 18);
+    strlcpy(config.sensors.ds.labels[i], doc["ds_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.ds.topics[i], doc["ds_t"][i] | ds_topics[i], 16);  
   }
 
   // TCRT5000
-  config.nodes.climate.tcrt5000.enabled = doc["tcrt_en"] | false;
-  config.nodes.climate.tcrt5000.pin = doc["tcrt_pin"] | 21;
-  strlcpy(config.nodes.climate.tcrt5000.label, doc["tcrt_l"] | "Освещение (TCRT)", 32);
-  strlcpy(config.nodes.climate.tcrt5000.unit, doc["tcrt_u"] | "Lux", 8);
-  strlcpy(config.nodes.climate.tcrt5000.ui_card, doc["tcrt_c"] | "card-tcrt", 16);
-  strlcpy(config.nodes.climate.tcrt5000.topic, doc["tcrt_t"] | "/lux", 16);  
-  // --- NODES: BINARY ---
+  config.sensors.tcrt.enabled = doc["tcrt_en"] | false;
+  config.sensors.tcrt.pins[0] = doc["tcrt_p"][0] | 21;
+  strlcpy(config.sensors.tcrt.labels[0], doc["tcrt_l"][0] | "Освещение (TCRT), Lux", 32);
+  strlcpy(config.sensors.tcrt.topics[0], doc["tcrt_t"][0] | "/lux", 16);  
+
   // PIR
-  config.nodes.binary.pir.enabled = doc["pir_en"] | false;
-  config.nodes.binary.pir.pin = doc["pir_p"] | 35;
-  strlcpy(config.nodes.binary.pir.label, doc["pir_l"] | "Motion", 32);
-  strlcpy(config.nodes.binary.pir.ui_card, doc["pir_c"] | "card-pir", 16);
-  strlcpy(config.nodes.binary.pir.topic, doc["pir_t"] | "/motion", 16);
+  config.sensors.pir.enabled = doc["pir_en"] | false;
+  config.sensors.pir.pins[0] = doc["pir_p"][0] | 35;
+  strlcpy(config.sensors.pir.labels[0], doc["pir_l"][0] | "Motion", 32);
+  strlcpy(config.sensors.pir.topics[0], doc["pir_t"][0] | "/motion", 16);
 
   // LD2420
-  config.nodes.binary.ld2420.enabled = doc["ld_en"] | false;
-  config.nodes.binary.ld2420.pin = doc["ld_p"] | 35;
-  strlcpy(config.nodes.binary.ld2420.label, doc["ld_l"] | "Presence", 32);
-  strlcpy(config.nodes.binary.ld2420.ui_card, doc["ld_c"] | "card-pres", 16);
-  strlcpy(config.nodes.binary.ld2420.topic, doc["ld_t"] | "/presence", 16);
+  config.sensors.ld.enabled = doc["ld_en"] | false;
+  config.sensors.ld.pins[0] = doc["ld_p"][0] | 35;
+  strlcpy(config.sensors.ld.labels[0], doc["ld_l"][0] | "Presence", 32);
+  strlcpy(config.sensors.ld.topics[0], doc["ld_t"][0] | "/presence", 16);
 
   // Door
-  config.nodes.binary.door.enabled = doc["door_en"] | false;
-  config.nodes.binary.door.pin = doc["door_p"] | 36;
-  strlcpy(config.nodes.binary.door.label, doc["door_l"] | "Door", 32);
-  strlcpy(config.nodes.binary.door.ui_card, doc["door_c"] | "card-door", 16);
-  strlcpy(config.nodes.binary.door.topic, doc["door_t"] | "/door", 16);
+  config.sensors.dr.enabled = doc["dr_en"] | false;
+  config.sensors.dr.pins[0] = doc["dr_p"][0] | 36;
+  strlcpy(config.sensors.dr.labels[0], doc["dr_l"][0] | "Door", 32);
+  strlcpy(config.sensors.dr.topics[0], doc["dr_t"][0] | "/door", 16);
 
   // Flood
-  config.nodes.binary.flood.enabled = doc["fl_en"] | false;
-  config.nodes.binary.flood.pin = doc["fl_p"] | 34;
-  strlcpy(config.nodes.binary.flood.label, doc["fl_l"] | "Leak", 32);
-  strlcpy(config.nodes.binary.flood.ui_card, doc["fl_c"] | "card-flood", 16);
-  strlcpy(config.nodes.binary.flood.topic, doc["fl_t"] | "/flood", 16);
+  config.sensors.fl.enabled = doc["fl_en"] | false;
+  config.sensors.fl.pins[0] = doc["fl_p"][0] | 34;
+  strlcpy(config.sensors.fl.labels[0], doc["fl_l"][0] | "Leak", 32);
+  strlcpy(config.sensors.fl.topics[0], doc["fl_t"][0] | "/flood", 16);
 
   // --- NODES: ANALOG ---
-  config.nodes.analog.light_resistor.enabled = doc["5516_en"] | false;
-  config.nodes.analog.light_resistor.pin = doc["5516_p"] | 39;
-  strlcpy(config.nodes.analog.light_resistor.label, doc["5516_l"] | "Light (LDR)", 32);
-  strlcpy(config.nodes.analog.light_resistor.ui_card, doc["5516_c"] | "card-lux-5516", 16);
-  strlcpy(config.nodes.analog.light_resistor.topic, doc["5516_t"] | "/lux_raw", 16);
+  config.sensors.lr.enabled = doc["lr_en"] | false;
+  config.sensors.lr.pins[0] = doc["lr_p"][0] | 39;
+  strlcpy(config.sensors.lr.labels[0], doc["lr_l"][0] | "Light (LDR)", 32);
+  strlcpy(config.sensors.lr.topics[0], doc["lr_t"][0] | "/lux_raw", 16);
 
   // --- NODES: ACTUATORS ---
   int r_pins[4] = {26, 27, 14, 13};
   char r_labels[4][32]={"Rele 1", "Rele 2", "Rele 3", "Rele 4"};
   char r_cards[4][16]={"card-r0", "card-r1", "card-r2", "card-r3"};
   char r_topics[4][16]={"/r0", "/r1", "/r2", "/r3"};
-  config.nodes.actuators.relays.enabled = doc["r_en"] | false;
+  config.sensors.relays.enabled = doc["r_en"] | false;
   for (int i = 0; i < 4; i++) {
-    config.nodes.actuators.relays.pins[i] = doc["r_p"][i] | r_pins[i];
-    strlcpy(config.nodes.actuators.relays.labels[i], doc["r_l"][i] | r_labels[i], 32);
-    strlcpy(config.nodes.actuators.relays.ui_cards[i], doc["r_c"][i] | r_cards[i], 16);
-    strlcpy(config.nodes.actuators.relays.topics[i], doc["r_t"][i] | r_topics[i], 16);
+    config.sensors.relays.pins[i] = doc["r_p"][i] | r_pins[i];
+    strlcpy(config.sensors.relays.labels[i], doc["r_l"][i] | r_labels[i], 32);
+    strlcpy(config.sensors.relays.topics[i], doc["r_t"][i] | r_topics[i], 16);
   }
 
   Serial.println("Settings loaded. OK!");
@@ -236,106 +217,112 @@ bool saveConfig() {
   doc["m_bt"] = config.services.mqtt.base_topic;
   doc["m_i"] = config.services.mqtt.interval;
 
-  // --- NODES: CLIMATE ---
   // BME280
-  doc["bme_en"] = config.nodes.climate.bme280.enabled;
-  doc["bme_p"] = config.nodes.climate.bme280.pin;
+  doc["bme_en"] = config.sensors.bme.enabled;
+  JsonArray bme_p = doc.createNestedArray("bme_p");
   JsonArray bme_l = doc.createNestedArray("bme_l");
-  JsonArray bme_u = doc.createNestedArray("bme_u");
-  JsonArray bme_c = doc.createNestedArray("bme_c");
   JsonArray bme_t = doc.createNestedArray("bme_t");
+  bme_p.add(config.sensors.bme.pins[0]);
   for (int i = 0; i < 3; i++) {
-    bme_l.add(config.nodes.climate.bme280.labels[i]);
-    bme_u.add(config.nodes.climate.bme280.units[i]);
-    bme_c.add(config.nodes.climate.bme280.ui_cards[i]);
-    bme_t.add(config.nodes.climate.bme280.topics[i]);
+    bme_l.add(config.sensors.bme.labels[i]);
+    bme_t.add(config.sensors.bme.topics[i]);
   }
 
   // DHT22
-  doc["dht_en"] = config.nodes.climate.dht22.enabled;
-  doc["dht_p"] = config.nodes.climate.dht22.pin;
+  doc["dht_en"] = config.sensors.dht.enabled;
+  JsonArray dht_p = doc.createNestedArray("dht_p");
   JsonArray dht_l = doc.createNestedArray("dht_l");
-  JsonArray dht_u = doc.createNestedArray("dht_u");
-  JsonArray dht_c = doc.createNestedArray("dht_c");
   JsonArray dht_t = doc.createNestedArray("dht_t");
+  dht_p.add(config.sensors.dht.pins[0]);
   for (int i = 0; i < 2; i++) {
-    dht_l.add(config.nodes.climate.dht22.labels[i]);
-    dht_u.add(config.nodes.climate.dht22.units[i]);
-    dht_c.add(config.nodes.climate.dht22.ui_cards[i]);
-    dht_t.add(config.nodes.climate.dht22.topics[i]);
+    dht_l.add(config.sensors.dht.labels[i]);
+    dht_t.add(config.sensors.dht.topics[i]);
   }
 
   // DS18B20
-  doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
-  doc["ds_p"] = config.nodes.climate.ds18b20.pin;
-  JsonArray ds_u = doc.createNestedArray("ds_u");
-  JsonArray ds_m = doc.createNestedArray("ds_m");
+  doc["ds_en"] = config.sensors.ds.enabled;
+  JsonArray ds_p = doc.createNestedArray("ds_p");
   JsonArray ds_l = doc.createNestedArray("ds_l");
-  JsonArray ds_c = doc.createNestedArray("ds_c");
   JsonArray ds_t = doc.createNestedArray("ds_t");
+  JsonArray ds_m = doc.createNestedArray("ds_m");
+  ds_p.add(config.sensors.ds.pins[0]);
   for (int i = 0; i < 4; i++) {
-    ds_u.add(config.nodes.climate.ds18b20.units[i]);
-    ds_m.add(config.nodes.climate.ds18b20.macs[i]);
-    ds_l.add(config.nodes.climate.ds18b20.labels[i]);
-    ds_c.add(config.nodes.climate.ds18b20.ui_cards[i]);
-    ds_t.add(config.nodes.climate.ds18b20.topics[i]);
+    ds_l.add(config.sensors.ds.labels[i]);
+    ds_t.add(config.sensors.ds.topics[i]);
+    ds_m.add(config.sensors.ds.macs[i]);
   }
 
   // TCRT5000
-  doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
-  doc["tcrt_p"] = config.nodes.climate.tcrt5000.pin;
-  doc["tcrt_l"] = config.nodes.climate.tcrt5000.label;
-  doc["tcrt_u"] = config.nodes.climate.tcrt5000.unit;
-  doc["tcrt_c"] = config.nodes.climate.tcrt5000.ui_card;
-  doc["tcrt_t"] = config.nodes.climate.tcrt5000.topic;
+  doc["tcrt_en"] = config.sensors.tcrt.enabled;
+  JsonArray tcrt_p = doc.createNestedArray("tcrt_p");
+  JsonArray tcrt_l = doc.createNestedArray("tcrt_l");
+  JsonArray tcrt_t = doc.createNestedArray("tcrt_t");
+  tcrt_p.add(config.sensors.tcrt.pins[0]);
+  tcrt_l.add(config.sensors.tcrt.labels[0]);
+  tcrt_t.add(config.sensors.tcrt.topics[0]);
 
-  // --- NODES: BINARY ---
   // PIR
-  doc["pir_en"] = config.nodes.binary.pir.enabled;
-  doc["pir_p"] = config.nodes.binary.pir.pin;
-  doc["pir_l"] = config.nodes.binary.pir.label;
-  doc["pir_c"] = config.nodes.binary.pir.ui_card;
-  doc["pir_t"] = config.nodes.binary.pir.topic;
+  doc["pir_en"] = config.sensors.pir.enabled;
+  JsonArray pir_p = doc.createNestedArray("pir_p");
+  JsonArray pir_l = doc.createNestedArray("pir_l");
+  JsonArray pir_t = doc.createNestedArray("pir_t");
+  pir_p.add(config.sensors.pir.pins[0]);
+  pir_l.add(config.sensors.pir.labels[0]);
+  pir_t.add(config.sensors.pir.topics[0]);
 
   // LD2420
-  doc["ld_en"] = config.nodes.binary.ld2420.enabled;
-  doc["ld_p"] = config.nodes.binary.ld2420.pin;
-  doc["ld_l"] = config.nodes.binary.ld2420.label;
-  doc["ld_c"] = config.nodes.binary.ld2420.ui_card;
-  doc["ld_t"] = config.nodes.binary.ld2420.topic;
+  doc["ld_en"] = config.sensors.ld.enabled;
+  JsonArray ld_p = doc.createNestedArray("ld_p");
+  JsonArray ld_l = doc.createNestedArray("ld_l");
+  JsonArray ld_t = doc.createNestedArray("ld_t");
+  ld_p.add(config.sensors.ld.pins[0]);
+  ld_l.add(config.sensors.ld.labels[0]);
+  ld_t.add(config.sensors.ld.topics[0]);
 
   // Door
-  doc["door_en"] = config.nodes.binary.door.enabled;
-  doc["door_p"] = config.nodes.binary.door.pin;
-  doc["door_l"] = config.nodes.binary.door.label;
-  doc["door_c"] = config.nodes.binary.door.ui_card;
-  doc["door_t"] = config.nodes.binary.door.topic;
+  doc["dr_en"] = config.sensors.dr.enabled;
+  JsonArray dr_p = doc.createNestedArray("dr_p");
+  JsonArray dr_l = doc.createNestedArray("dr_l");
+  JsonArray dr_t = doc.createNestedArray("dr_t");
+  dr_p.add(config.sensors.dr.pins[0]);
+  dr_l.add(config.sensors.dr.labels[0]);
+  dr_t.add(config.sensors.dr.topics[0]);
+
 
   // Flood
-  doc["fl_en"] = config.nodes.binary.flood.enabled;
-  doc["fl_p"] = config.nodes.binary.flood.pin;
-  doc["fl_l"] = config.nodes.binary.flood.label;
-  doc["fl_c"] = config.nodes.binary.flood.ui_card;
-  doc["fl_t"] = config.nodes.binary.flood.topic;
+  doc["fl_en"] = config.sensors.fl.enabled;
+  JsonArray fl_p = doc.createNestedArray("fl_p");
+  JsonArray fl_l = doc.createNestedArray("fl_l");
+  JsonArray fl_t = doc.createNestedArray("fl_t");
+  fl_p.add(config.sensors.fl.pins[0]);
+  fl_l.add(config.sensors.fl.labels[0]);
+  fl_t.add(config.sensors.fl.topics[0]);
 
-  // --- NODES: ANALOG ---
-  doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
-  doc["5516_p"] = config.nodes.analog.light_resistor.pin;
-  doc["5516_l"] = config.nodes.analog.light_resistor.label;
-  doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
-  doc["5516_t"] = config.nodes.analog.light_resistor.topic;
+  // --- Light Resistor ---
+  doc["lr_en"] = config.sensors.lr.enabled;
+  JsonArray lr_p = doc.createNestedArray("lr_p");
+  JsonArray lr_l = doc.createNestedArray("lr_l");
+  JsonArray lr_t = doc.createNestedArray("lr_t");
+  lr_p.add(config.sensors.lr.pins[0]);
+  lr_l.add(config.sensors.lr.labels[0]);
+  lr_t.add(config.sensors.lr.topics[0]);
 
-  // --- NODES: ACTUATORS ---
-  doc["r_en"] = config.nodes.actuators.relays.enabled;
+
+  // doc["5516_p"] = config.nodes.analog.light_resistor.pin;
+  // doc["5516_l"] = config.nodes.analog.light_resistor.label;
+  // doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
+  // doc["5516_t"] = config.nodes.analog.light_resistor.topic;
+
+  // --- ACTUATORS ---
+  doc["r_en"] = config.sensors.relays.enabled;
   JsonArray r_p = doc.createNestedArray("r_p");
   JsonArray r_l = doc.createNestedArray("r_l");
   JsonArray r_c = doc.createNestedArray("r_c");
   JsonArray r_t = doc.createNestedArray("r_t");
   for (int i = 0; i < 4; i++) {
-    r_p.add(config.nodes.actuators.relays.pins[i]);
-    r_l.add(config.nodes.actuators.relays.labels[i]);
-    r_c.add(config.nodes.actuators.relays.ui_cards[i]);
-    r_t.add(config.nodes.actuators.relays.topics[i]);
+    r_p.add(config.sensors.relays.pins[i]);
+    r_l.add(config.sensors.relays.labels[i]);
+    r_t.add(config.sensors.relays.topics[i]);
   }
 
   if (serializeJson(doc, configFile) == 0) {
@@ -389,17 +376,25 @@ void setupAPI() {
     } else request->send(200);
   });
   server.on("/api/values", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<1024> doc; doc["in_t"] = String(random(220, 250)/10.0, 1); doc["in_h"] = String(random(40, 50));
-    doc["lux"] = String(random(100, 500)); 
-    doc["lux_out"] = String(random(0, 5000));
-    doc["pir"] = random(0, 10) > 8; 
-    doc["pres"] = random(0, 10) > 7;
-    doc["out_t"] = String(random(-50, 150)/10.0, 1); 
-    doc["out_h"] = String(random(60, 90));
-    doc["t1"] = String(random(400, 600)/10.0, 1); 
-    doc["t2"] = String(random(400, 600)/10.0, 1);
-    doc["door"] = random(0, 10) > 7; 
-    doc["flood"] = random(0, 10) > 8;
+    StaticJsonDocument<1024> doc; 
+    doc["bme_v0"] = String(random(-50, 150)/10.0, 1); 
+    doc["bme_v1"] = String(random(60, 90));
+    doc["bme_v2"] = String(random(99000, 102000));
+    doc["dht_v0"] = String(random(220, 250)/10.0, 1); 
+    doc["dht_v1"] = String(random(40, 50));
+    doc["ds_v0"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v1"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v2"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v3"] = String(random(400, 600)/10.0, 1); 
+
+
+    doc["tcrt_v0"] = String(random(100, 500)); 
+    doc["lr_v0"] = String(random(0, 100));
+     
+    doc["ld_v0"] = random(0, 10) > 7;
+    doc["dr_v0"] = random(0, 10) > 7; 
+    doc["fl_v0"] = random(0, 10) > 8;
+    doc["pir_v0"] = random(0, 10) > 8;
     String j; 
     serializeJson(doc, j); 
     if (isCORS){
@@ -444,88 +439,97 @@ void setupAPI() {
 
     // --- Nodes: Climate ---
     // --- BME ---
-    doc["bme_en"] = config.nodes.climate.bme280.enabled;
-    doc["bme_p"] = config.nodes.climate.bme280.pin;
+    doc["bme_en"] = config.sensors.bme.enabled;
+    JsonArray bme_p = doc.createNestedArray("bme_p");
+    bme_p.add(config.sensors.bme.pins[0]);
     JsonArray bme_l = doc.createNestedArray("bme_l");
-    for(int i=0; i<3; i++) bme_l.add(config.nodes.climate.bme280.labels[i]);
-    JsonArray bme_u = doc.createNestedArray("bme_u");
-    for(int i=0; i<3; i++) bme_u.add(config.nodes.climate.bme280.units[i]);
+    for(int i=0; i<3; i++) bme_l.add(config.sensors.bme.labels[i]);
     JsonArray bme_t = doc.createNestedArray("bme_t");
-    for(int i=0; i<3; i++) bme_t.add(config.nodes.climate.bme280.topics[i]);
+    for(int i=0; i<3; i++) bme_t.add(config.sensors.bme.topics[i]);
 
 
     // --- DHT ---
-    doc["dht_en"] = config.nodes.climate.dht22.enabled;
-    doc["dht_p"] = config.nodes.climate.dht22.pin;
+    doc["dht_en"] = config.sensors.dht.enabled;
+    JsonArray dht_p = doc.createNestedArray("dht_p");
+    dht_p.add(config.sensors.dht.pins[0]);
     JsonArray dht_l = doc.createNestedArray("dht_l");
-    for(int i=0; i<2; i++) dht_l.add(config.nodes.climate.dht22.labels[i]);
-    JsonArray dht_u = doc.createNestedArray("dht_u");
-    for(int i=0; i<2; i++) dht_u.add(config.nodes.climate.dht22.units[i]);
+    for(int i=0; i<2; i++) dht_l.add(config.sensors.dht.labels[i]);
     JsonArray dht_t = doc.createNestedArray("dht_t");
-    for(int i=0; i<2; i++) dht_t.add(config.nodes.climate.dht22.topics[i]);
+    for(int i=0; i<2; i++) dht_t.add(config.sensors.dht.topics[i]);
 
     // --- DS18B20 ---
-    doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
-    doc["ds_p"] = config.nodes.climate.ds18b20.pin;
+    doc["ds_en"] = config.sensors.ds.enabled;
+    JsonArray ds_p = doc.createNestedArray("ds_p");
+    ds_p.add(config.sensors.ds.pins[0]);
     JsonArray ds_m = doc.createNestedArray("ds_m");
-    for(int i=0; i<4; i++) ds_m.add(config.nodes.climate.ds18b20.macs[i]);
+    for(int i=0; i<4; i++) ds_m.add(config.sensors.ds.macs[i]);
     JsonArray ds_l = doc.createNestedArray("ds_l");
-    for(int i=0; i<4; i++) ds_l.add(config.nodes.climate.ds18b20.labels[i]);
-    JsonArray ds_u = doc.createNestedArray("ds_u");
-    for(int i=0; i<4; i++) ds_u.add(config.nodes.climate.ds18b20.units[i]);
+    for(int i=0; i<4; i++) ds_l.add(config.sensors.ds.labels[i]);
     JsonArray ds_t = doc.createNestedArray("ds_t");
-    for(int i=0; i<4; i++) ds_t.add(config.nodes.climate.ds18b20.topics[i]);
-
-
-
+    for(int i=0; i<4; i++) ds_t.add(config.sensors.ds.topics[i]);
 
     // --- TCRT5000 ---
-    doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
-    doc["tcrt_p"] = config.nodes.climate.tcrt5000.pin;
-    doc["tcrt_l"] = config.nodes.climate.tcrt5000.label;
-    doc["tcrt_u"] = config.nodes.climate.tcrt5000.unit;
-    doc["tcrt_t"] = config.nodes.climate.tcrt5000.topic;
+    doc["tcrt_en"] = config.sensors.tcrt.enabled;
+    JsonArray tcrt_p = doc.createNestedArray("tcrt_p");
+    tcrt_p.add(config.sensors.tcrt.pins[0]);
+    JsonArray tcrt_l = doc.createNestedArray("tcrt_l");
+    tcrt_l.add(config.sensors.tcrt.labels[0]);
+    JsonArray tcrt_t = doc.createNestedArray("tcrt_t");
+    tcrt_t.add(config.sensors.tcrt.topics[0]);
 
-    // --- Nodes: Binary ---
     // --- SR501 ---
-    doc["pir_en"]  = config.nodes.binary.pir.enabled;
-    doc["pir_p"]   = config.nodes.binary.pir.pin;
-    doc["pir_l"]   = config.nodes.binary.pir.label;
-    doc["pir_t"]   = config.nodes.binary.pir.topic;
+    doc["pir_en"] = config.sensors.pir.enabled;
+    JsonArray pir_p = doc.createNestedArray("pir_p");
+    pir_p.add(config.sensors.pir.pins[0]);
+    JsonArray pir_l = doc.createNestedArray("pir_l");
+    pir_l.add(config.sensors.pir.labels[0]);
+    JsonArray pir_t = doc.createNestedArray("pir_t");
+    pir_t.add(config.sensors.pir.topics[0]);
 
     // --- LD2420 ---
-    doc["ld_en"] = config.nodes.binary.ld2420.enabled;
-    doc["ld_p"]  = config.nodes.binary.ld2420.pin;
-    doc["ld_l"] = config.nodes.binary.ld2420.label;
-    doc["ld_t"]  = config.nodes.binary.ld2420.topic;
-
+    doc["ld_en"] = config.sensors.ld.enabled;
+    JsonArray ld_p = doc.createNestedArray("ld_p");
+    ld_p.add(config.sensors.ld.pins[0]);
+    JsonArray ld_l = doc.createNestedArray("ld_l");
+    ld_l.add(config.sensors.ld.labels[0]);
+    JsonArray ld_t = doc.createNestedArray("ld_t");
+    ld_t.add(config.sensors.ld.topics[0]);
+  
     // --- Door ---
-    doc["door_en"] = config.nodes.binary.door.enabled;
-    doc["door_p"]  = config.nodes.binary.door.pin;
-    doc["door_l"] = config.nodes.binary.door.label;
-    doc["door_t"]  = config.nodes.binary.door.topic;
-
+    doc["dr_en"] = config.sensors.dr.enabled;
+    JsonArray dr_p = doc.createNestedArray("dr_p");
+    dr_p.add(config.sensors.dr.pins[0]);
+    JsonArray dr_l = doc.createNestedArray("dr_l");
+    dr_l.add(config.sensors.dr.labels[0]);
+    JsonArray dr_t = doc.createNestedArray("dr_t");
+    dr_t.add(config.sensors.dr.topics[0]);
+ 
     // --- Flood ---
-    doc["fl_en"]   = config.nodes.binary.flood.enabled;
-    doc["fl_p"]    = config.nodes.binary.flood.pin;
-    doc["fl_l"]   = config.nodes.binary.flood.label;
-    doc["fl_t"]    = config.nodes.binary.flood.topic;
+    doc["fl_en"] = config.sensors.fl.enabled;
+    JsonArray fl_p = doc.createNestedArray("fl_p");
+    fl_p.add(config.sensors.fl.pins[0]);
+    JsonArray fl_l = doc.createNestedArray("fl_l");
+    fl_l.add(config.sensors.fl.labels[0]);
+    JsonArray fl_t = doc.createNestedArray("fl_t");
+    fl_t.add(config.sensors.fl.topics[0]);
 
-    // --- Nodes: Analog ---
     // --- Resistor 5516 ---
-    doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
-    doc["5516_p"]  = config.nodes.analog.light_resistor.pin;
-    doc["5516_l"] = config.nodes.analog.light_resistor.label;
-    doc["5516_t"]  = config.nodes.analog.light_resistor.topic;
+    doc["lr_en"] = config.sensors.lr.enabled;
+    JsonArray lr_p = doc.createNestedArray("lr_p");
+    lr_p.add(config.sensors.lr.pins[0]);
+    JsonArray lr_l = doc.createNestedArray("lr_l");
+    lr_l.add(config.sensors.lr.labels[0]);
+    JsonArray lr_t = doc.createNestedArray("lr_t");
+    lr_t.add(config.sensors.lr.topics[0]);
 
     // --- Nodes: Actuators (Relays) ---
-    doc["r_en"] = config.nodes.actuators.relays.enabled;
+    doc["r_en"] = config.sensors.relays.enabled;
     JsonArray r_p = doc.createNestedArray("r_p");
-    for(int i=0; i<4; i++) r_p.add(config.nodes.actuators.relays.pins[i]);
+    for(int i=0; i<4; i++) r_p.add(config.sensors.relays.pins[i]);
     JsonArray r_l = doc.createNestedArray("r_l");
-    for(int i=0; i<4; i++) r_l.add(config.nodes.actuators.relays.labels[i]);
+    for(int i=0; i<4; i++) r_l.add(config.sensors.relays.labels[i]);
     JsonArray r_t = doc.createNestedArray("r_t");
-    for(int i=0; i<4; i++) r_t.add(config.nodes.actuators.relays.topics[i]);
+    for(int i=0; i<4; i++) r_t.add(config.sensors.relays.topics[i]);
 
     // Сериализация
     String responseData;
@@ -608,36 +612,36 @@ void setupAPI() {
   server.on("/api/set-sens", HTTP_POST, [](AsyncWebServerRequest *request){
     // 1. Климатические датчики
     if(request->hasParam("bme_en", true)) 
-        config.nodes.climate.bme280.enabled = (request->getParam("bme_en", true)->value() == "true");
+        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
     
     if(request->hasParam("dht_en", true)) 
-        config.nodes.climate.dht22.enabled = (request->getParam("dht_en", true)->value() == "true");
+        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
     
     if(request->hasParam("ds_en", true)) 
-        config.nodes.climate.ds18b20.enabled = (request->getParam("ds_en", true)->value() == "true");
+        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
     
     if(request->hasParam("tcrt_en", true)) 
-        config.nodes.climate.tcrt5000.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
 
     // 2. Бинарные датчики (Binary)
     if(request->hasParam("pir_en", true)) 
-        config.nodes.binary.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
     
     if(request->hasParam("ld_en", true)) 
-        config.nodes.binary.ld2420.enabled = (request->getParam("ld_en", true)->value() == "true");
+        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
     
-    if(request->hasParam("door_en", true)) 
-        config.nodes.binary.door.enabled = (request->getParam("door_en", true)->value() == "true");
+    if(request->hasParam("dr_en", true)) 
+        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
     
     if(request->hasParam("fl_en", true)) 
-        config.nodes.binary.flood.enabled = (request->getParam("fl_en", true)->value() == "true");
+        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
 
     // 3. Аналоговые датчики
-    if(request->hasParam("5516_en", true)) 
-        config.nodes.analog.light_resistor.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("lr_en", true)) 
+        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
     // 4. Актуаторы (Реле)
     if(request->hasParam("r_en", true)) 
-        config.nodes.actuators.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
     // Сохраняем обновленную структуру в LittleFS
     saveConfig(); 
 
@@ -655,25 +659,25 @@ void setupAPI() {
   server.on("/api/set-srv", HTTP_POST, [](AsyncWebServerRequest *request){
     // Активация и деактивация сенсоров, переключатели
     if(request->hasParam("bme_en", true)) 
-        config.nodes.climate.bme280.enabled = (request->getParam("bme_en", true)->value() == "true");
+        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
     if(request->hasParam("dht_en", true)) 
-        config.nodes.climate.dht22.enabled = (request->getParam("dht_en", true)->value() == "true");
+        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
     if(request->hasParam("ds_en", true)) 
-        config.nodes.climate.ds18b20.enabled = (request->getParam("ds_en", true)->value() == "true");
+        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
     if(request->hasParam("tcrt_en", true)) 
-        config.nodes.climate.tcrt5000.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
     if(request->hasParam("pir_en", true)) 
-        config.nodes.binary.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
     if(request->hasParam("ld_en", true)) 
-        config.nodes.binary.ld2420.enabled = (request->getParam("ld_en", true)->value() == "true");
-    if(request->hasParam("door_en", true)) 
-        config.nodes.binary.door.enabled = (request->getParam("door_en", true)->value() == "true");
+        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
+    if(request->hasParam("dr_en", true)) 
+        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
     if(request->hasParam("fl_en", true)) 
-        config.nodes.binary.flood.enabled = (request->getParam("fl_en", true)->value() == "true");
+        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
     if(request->hasParam("5516_en", true)) 
-        config.nodes.analog.light_resistor.enabled = (request->getParam("5516_en", true)->value() == "true");
+        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
     if(request->hasParam("r_en", true)) 
-        config.nodes.actuators.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
 
     // --- 1. Системные настройки (System) ---
     if(request->hasParam("s_dn", true)) 
