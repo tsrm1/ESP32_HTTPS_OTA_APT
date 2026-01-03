@@ -70,10 +70,17 @@ const char index_html[] PROGMEM = R"rawliteral(
         color: #007bff;
       }
       .section {
-        background: #fff;
+        background: #f0f2f5;
         padding: 15px;
         border-radius: 12px;
-        margin-bottom: 15px;
+        margin: 12px;
+        display: none;
+        border: 2px solid #28a745;
+      }
+      .section h3 {
+        color: #28a745;
+        margin-top: 0;
+        font-size: 16px;
       }
       .row {
         display: flex;
@@ -86,8 +93,15 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 13px;
         font-weight: 600;
       }
+      .row input {
+        flex: 1;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        background: #f3f3f3;
+      }
       .btn {
-        background: #007bff;
+        background: #28a745;
         color: #fff;
         border: none;
         padding: 12px;
@@ -97,15 +111,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 15px;
         font-weight: bold;
       }
-      .btn-scan {
-        background: #17a2b8;
-        color: white;
-        border: none;
-        padding: 8px;
-        border-radius: 6px;
-        width: 100%;
-        cursor: pointer;
-        margin: 10px 0;
+      .btn-add {
+        background: #007bff;
       }
       .pass-wrapper {
         position: relative;
@@ -178,26 +185,27 @@ const char index_html[] PROGMEM = R"rawliteral(
       .net-item:hover {
         background: #f8f9fa;
       }
-      .details {
+      /* Для DS18B20 */
+      /* .details {
         background: #fff;
         border-radius: 8px;
         margin-bottom: 6px;
         border: 1px solid #eee;
         overflow: hidden;
-      }
-      summary {
+      } */
+      /* summary {
         padding: 14px;
         cursor: pointer;
         display: flex;
         align-items: center;
         font-weight: 500;
         outline: none;
-      }
-      details-content {
+      } */
+      /* details-content {
         padding: 15px;
         border-top: 1px solid #f0f0f0;
         background: #fafafa;
-      }
+      } */
       .acc-item {
         background: #fff;
         border-radius: 8px;
@@ -212,6 +220,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         cursor: pointer;
         background: #fff;
         justify-content: space-between;
+        font-size: 1.2rem;
+        font-weight: bold;
       }
       .acc-panel {
         display: none;
@@ -234,581 +244,381 @@ const char index_html[] PROGMEM = R"rawliteral(
     </div>
     <div class="container">
       <div id="tab-mon" class="page active">
-        <div class="card-grid">
-          <div class="card" id="card-dht-t">
-            <h4>Т.Внутр.</h4>
-            <div id="v_in_t">--</div>
-          </div>
-          <div class="card" id="card-dht-h">
-            <h4>Вл.Внутр.</h4>
-            <div id="v_in_h">--</div>
-          </div>
-          <div class="card" id="card-lux-5516">
-            <h4>Свет Вн.</h4>
-            <div id="v_lux">--</div>
-          </div>
-          <div class="card" id="card-tcrt">
-            <h4>Свет Нар.</h4>
-            <div id="v_lux_out">--</div>
-          </div>
-          <div class="card" id="card-pir">
-            <h4>Движение</h4>
-            <div id="v_pir">--</div>
-          </div>
-          <div class="card" id="card-pres">
-            <h4>Присут.</h4>
-            <div id="v_pres">--</div>
-          </div>
-          <div class="card" id="card-bme-t">
-            <h4>Т.Наруж.</h4>
-            <div id="v_out_t">--</div>
-          </div>
-          <div class="card" id="card-bme-h">
-            <h4>Вл.Наруж.</h4>
-            <div id="v_out_h">--</div>
-          </div>
-          <div class="card" id="card-bme-p">
-            <h4>Давл.Наруж.</h4>
-            <div id="v_out_p">--</div>
-          </div>
-          <div class="card" id="card-t1">
-            <h4>Т1 Рад.</h4>
-            <div id="v_t1">--</div>
-          </div>
-          <div class="card" id="card-t2">
-            <h4>Т2 Рад.</h4>
-            <div id="v_t2">--</div>
-          </div>
-          <div class="card" id="card-t3">
-            <h4>Т3 Рад.</h4>
-            <div id="v_t3">--</div>
-          </div>
-          <div class="card" id="card-t4">
-            <h4>Т4 Рад.</h4>
-            <div id="v_t4">--</div>
-          </div>
-          <div class="card" id="card-door">
-            <h4>Дверь</h4>
-            <div id="v_door">--</div>
-          </div>
-          <div class="card" id="card-flood">
-            <h4>Затоп.</h4>
-            <div id="v_flood">--</div>
-          </div>
-          <div class="card" id="card-r0">
-            <h4>Реле 1</h4>
-            <label class="switch"
-              ><input type="checkbox" id="r0" onchange="setRelay(0)" /><span
-                class="slider"
-              ></span
-            ></label>
-          </div>
-          <div class="card" id="card-r1">
-            <h4>Реле 2</h4>
-            <label class="switch"
-              ><input type="checkbox" id="r1" onchange="setRelay(1)" /><span
-                class="slider"
-              ></span
-            ></label>
-          </div>
-          <div class="card" id="card-r2">
-            <h4>Реле 3</h4>
-            <label class="switch"
-              ><input type="checkbox" id="r2" onchange="setRelay(2)" /><span
-                class="slider"
-              ></span
-            ></label>
-          </div>
-          <div class="card" id="card-r3">
-            <h4>Реле 4</h4>
-            <label class="switch"
-              ><input type="checkbox" id="r3" onchange="setRelay(3)" /><span
-                class="slider"
-              ></span
-            ></label>
-          </div>
-        </div>
+        <div class="card-grid" id="cards-cont"></div>
       </div>
 
       <div id="tab-sens" class="page">
-        <div id="acc-cont">
+        <div class="acc-cont">
           <!-- Sensor BME280 -->
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)"
-                ><b>BME280</b> (Температура, Влажность, Даавление)</span
+                >BME280 (Temperature, Humidity, Pressure)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="bme_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="bme_en"
+                  onclick="setSwitcher('bme_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label
-                ><input
-                  type="text"
-                  value="I2C (SDA/SCL)"
-                  readonly
-                  style="background: #eee"
-                />
-              </div>
-              <button class="btn-scan" onclick="scan('bme280')">
-                Search BME280
-              </button>
-              <div id="res_bme280"></div>
-            </div>
+            <div class="acc-panel" id="cont_bme"></div>
           </div>
 
           <!-- Sensor DHT22 -->
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)"
-                ><b>DHT22</b> (Температура, Влажность)</span
+                >DHT22 (Temperature, Humadity)</span
               >
               <label class="switch"
-                ><input type="checkbox" id="dht_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="dht_en"
+                  onclick="setSwitcher('dht_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="dht_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('dht22')">
-                Search DHT22
-              </button>
-              <div id="res_dht280"></div>
-            </div>
+            <div class="acc-panel" id="cont_dht"></div>
           </div>
 
           <!-- Sensor DS18B20 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"
-                ><b>DS18B20</b> (Температура)</span
-              >
+              <span onclick="toggleAcc(this)">DS18B20 (Temperature)</span>
               <label class="switch"
-                ><input type="checkbox" id="ds_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="ds_en"
+                  onclick="setSwitcher('ds_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="ds_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('ds18b20')">
-                Search DS18B20
-              </button>
-              <div id="res_ds18b20"></div>
-            </div>
+            <div class="acc-panel" id="cont_ds"></div>
           </div>
 
           <!-- Sensor TCRT5000 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>TCRT5000</b> (Освещение)</span>
+              <span onclick="toggleAcc(this)">TCRT5000 (Light)</span>
               <label class="switch"
-                ><input type="checkbox" id="tcrt_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="tcrt_en"
+                  onclick="setSwitcher('tcrt_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label
-                ><input
-                  type="text"
-                  value="I2C (SDA/SCL)"
-                  readonly
-                  style="background: #eee"
-                />
-              </div>
-              <button class="btn-scan" onclick="scan('tcrt5000')">
-                Search TCRT5000
-              </button>
-              <div id="res_tcrt5000"></div>
-            </div>
+            <div class="acc-panel" id="cont_tcrt"></div>
           </div>
 
           <!-- Sensor PIR -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>PIR</b> (Движение)</span>
+              <span onclick="toggleAcc(this)">PIR (Motion)</span>
               <label class="switch"
-                ><input type="checkbox" id="pir_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="pir_en"
+                  onclick="setSwitcher('pir_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="pir_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('pir')">Search PIR</button>
-              <div id="res_pir"></div>
-            </div>
+            <div class="acc-panel" id="cont_pir"></div>
           </div>
 
           <!-- Sensor LD2420 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>LD2420</b> (Присутствие)</span>
+              <span onclick="toggleAcc(this)">LD2420 (Presence)</span>
               <label class="switch"
-                ><input type="checkbox" id="ld_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="ld_en"
+                  onclick="setSwitcher('ld_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="ld_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('ld2420')">
-                Search LD2420
-              </button>
-              <div id="res_ld2420"></div>
-            </div>
+            <div class="acc-panel" id="cont_ld"></div>
           </div>
 
           <!-- Sensor DOOR -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>DOOR</b> (Дверь)</span>
+              <span onclick="toggleAcc(this)">Magnetic sensor (Door)</span>
               <label class="switch"
-                ><input type="checkbox" id="door_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="dr_en"
+                  onclick="setSwitcher('dr_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="door_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('door')">
-                Search DOOR
-              </button>
-              <div id="res_door"></div>
-            </div>
+            <div class="acc-panel" id="cont_dr"></div>
           </div>
 
           <!-- Sensor FLOOD -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>FLOOD</b> (Затопление)</span>
+              <span onclick="toggleAcc(this)">Flood sensor (Flooding)</span>
               <label class="switch"
-                ><input type="checkbox" id="fl_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="fl_en"
+                  onclick="setSwitcher('fl_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="fl_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('flood')">
-                Search FLOOD
-              </button>
-              <div id="res_flood"></div>
-            </div>
+            <div class="acc-panel" id="cont_fl"></div>
           </div>
 
           <!-- Sensor Resistor 5516 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"
-                ><b>Resistor 5516</b> (Освещение)</span
-              >
+              <span onclick="toggleAcc(this)">Resistor 5516 (Light)</span>
               <label class="switch"
-                ><input type="checkbox" id="5516_en" /><span
-                  class="slider"
-                ></span
+                ><input
+                  type="checkbox"
+                  id="lr_en"
+                  onclick="setSwitcher('lr_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>GPIO:</label><input type="number" id="5516_p" />
-              </div>
-              <button class="btn-scan" onclick="scan('5516')">
-                Search Resistor 5516
-              </button>
-              <div id="res_5516"></div>
-            </div>
+            <div class="acc-panel" id="cont_lr"></div>
           </div>
 
           <!-- Sensor RELE -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)"><b>RELEx4</b> (Блок реле)</span>
+              <span onclick="toggleAcc(this)">RELEYx4 (Relay unit)</span>
               <label class="switch"
-                ><input type="checkbox" id="r_en" /><span class="slider"></span
+                ><input
+                  type="checkbox"
+                  id="r_en"
+                  onclick="setSwitcher('r_en')" /><span class="slider"></span
               ></label>
             </div>
-            <div class="acc-panel">
-              <div class="row">
-                <label>R1 GPIO:</label><input type="number" id="r_p0" />
-              </div>
-              <div class="row">
-                <label>R2 GPIO:</label><input type="number" id="r_p1" />
-              </div>
-              <div class="row">
-                <label>R3 GPIO:</label><input type="number" id="r_p2" />
-              </div>
-              <div class="row">
-                <label>R4 GPIO:</label><input type="number" id="r_p3" />
-              </div>
-              <button class="btn-scan" onclick="scan('rele')">
-                Инициализировать
-              </button>
-            </div>
+            <div class="acc-panel" id="cont_r"></div>
           </div>
         </div>
-        <button class="btn" style="margin-top: 15px" onclick="saveSens()">
-          Save settings :
-        </button>
       </div>
 
       <div id="tab-srv" class="page">
-        <div class="section">
-          <h3>
-            Wi-Fi<label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="wifi_en"
-            /></label>
-          </h3>
-          <button class="btn" onclick="scanWiFi()">Scan Wi-Fi</button>
-          <div
-            id="nets"
-            style="
-              margin-top: 10px;
-              max-height: 250px;
-              overflow-y: auto;
-              border: 1px solid #eee;
-              border-radius: 8px;
-            "
-          ></div>
-          <div class="row" style="margin-top: 15px">
-            <label>SSID</label
-            ><input
-              id="ssid"
-              readonly
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div class="row">
-            <label>Password</label>
-            <div class="pass-wrapper">
-              <input id="w_pass" type="password" /><span
-                class="toggle-eye"
-                onclick="togglePass('w_pass')"
-                >👁️</span
-              >
+        <div class="acc-cont">
+          <!-- Service WiFi -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">WiFi</span>
+              <label class="switch">
+                <input
+                  type="checkbox"
+                  id="w_en"
+                  onclick="setSwitcher('w_en')"
+                />
+                <span class="slider"></span>
+              </label>
             </div>
-          </div>
-          <button class="btn" style="background: #28a745" onclick="connWiFi()">
-            Connect
-          </button>
-        </div>
-        <div
-          id="curr-conn"
-          class="section"
-          style="display: none; border: 2px solid #28a745; margin-top: 15px"
-        >
-          <h3 style="color: #28a745; margin-top: 0; font-size: 16px">
-            Connected to:
-          </h3>
-          <div class="row">
-            <label>SSID</label
-            ><span id="cur_ssid" style="font-weight: bold"></span>
-          </div>
-          <div class="row">
-            <label>IP</label><span id="cur_ip" style="font-weight: bold"></span>
-          </div>
-          <div class="row"><label>RSSI</label><span id="cur_rssi"></span></div>
-          <div class="row">
-            <label>Link</label
-            ><a
-              id="cur_link"
-              href=""
-              target="_blank"
-              style="color: #007bff; font-weight: bold; word-break: break-all"
-            ></a>
-          </div>
-        </div>
-        <div class="section">
-          <h3>
-            Telegram
-            <label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="tg_en"
-            /></label>
-          </h3>
-          <div class="row">
-            <label>Bot Token</label
-            ><input
-              id="tg_token"
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div id="ids-container"></div>
-          <button
-            class="btn"
-            style="background: #28a745; margin-bottom: 10px; padding: 8px"
-            onclick="addUserId()"
-          >
-            + Add UserID
-          </button>
-        </div>
-        <div class="section">
-          <h3>
-            MQTT
-            <label style="font-size: 12px; float: right"
-              >Activate <input type="checkbox" id="mqtt_en"
-            /></label>
-          </h3>
-          <div class="row">
-            <label>Broker IP</label
-            ><input
-              id="m_ip"
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div class="row">
-            <label>Port</label><input id="m_port" type="number" />
-          </div>
-          <div class="row">
-            <label>User</label
-            ><input
-              id="m_u"
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div class="row">
-            <label>Pass</label>
-            <div class="pass-wrapper">
-              <input id="m_p" type="password" /><span
-                class="toggle-eye"
-                onclick="togglePass('m_p')"
-                >👁️</span
-              >
-            </div>
-          </div>
-          <div class="row">
-            <label>Topic</label
-            ><input
-              id="m_t"
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div class="row">
-            <label>Interval (s)</label><input id="m_i" type="number" />
-          </div>
-        </div>
-        <div class="section">
-          <h3>Web Security</h3>
-          <div class="row">
-            <label>Login</label
-            ><input
-              id="w_u"
-              style="
-                flex: 1;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 6px;
-              "
-            />
-          </div>
-          <div class="row">
-            <label>Password</label>
-            <div class="pass-wrapper">
-              <input id="w_p" type="password" /><span
-                class="toggle-eye"
-                onclick="togglePass('w_p')"
-                >👁️</span
-              >
+            <div class="acc-panel" id="cont_w">
+              <button class="btn btn-add" onclick="scanWiFi()">
+                Scan Wi-Fi
+              </button>
+              <div id="nets"></div>
+              <div class="row" style="margin-top: 15px">
+                <label>SSID</label><input id="ssid" readonly />
+              </div>
+              <div class="row">
+                <label>Password</label>
+                <div class="pass-wrapper">
+                  <input id="w_pass" type="password" /><span
+                    class="toggle-eye"
+                    onclick="togglePass('w_pass')"
+                    >👁️</span
+                  >
+                </div>
+              </div>
+              <button class="btn" onclick="connWiFi()">Connect</button>
+
+              <div id="cur-wifi" class="section">
+                <h3>Connected to:</h3>
+                <div class="row">
+                  <label>SSID</label
+                  ><span id="cur_ssid" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>IP</label
+                  ><span id="cur_ip" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>RSSI</label><span id="cur_rssi"></span>
+                </div>
+                <div class="row">
+                  <label>Link</label
+                  ><a
+                    id="cur_link"
+                    href=""
+                    target="_blank"
+                    style="
+                      color: #007bff;
+                      font-weight: bold;
+                      word-break: break-all;
+                    "
+                  ></a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <button class="btn" onclick="saveSrv()">Save settings</button>
+        <div class="acc-cont">
+          <!-- Service Telegram -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">Telegram</span>
+              <label class="switch"
+                ><input
+                  type="checkbox"
+                  id="tg_en"
+                  onclick="setSwitcher('tg_en')" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel" id="cont_tg">
+              <div class="row"><label>Bot Token</label><input id="tg_t" /></div>
+              <div id="ids-container"></div>
+              <button
+                class="btn btn-add"
+                style="margin-bottom: 12px"
+                onclick="addUserId()"
+              >
+                Add UserID
+              </button>
+              <button class="btn" onclick="connTG()">Connect</button>
+            </div>
+          </div>
+        </div>
+        <div class="acc-cont">
+          <!-- Service MQTT -->
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">MQTT</span>
+              <label class="switch"
+                ><input
+                  type="checkbox"
+                  id="m_en"
+                  onclick="setSwitcher('m_en')" /><span class="slider"></span
+              ></label>
+            </div>
+            <div class="acc-panel" id="cont_m">
+              <div class="row"><label>Broker IP</label><input id="m_ip" /></div>
+              <div class="row">
+                <label>Port</label><input id="m_port" type="number" />
+              </div>
+              <div class="row"><label>User</label><input id="m_u" /></div>
+              <div class="row">
+                <label>Pass</label>
+                <div class="pass-wrapper">
+                  <input id="m_p" type="password" /><span
+                    class="toggle-eye"
+                    onclick="togglePass('m_p')"
+                    >👁️</span
+                  >
+                </div>
+              </div>
+              <div class="row"><label>Topic</label><input id="m_bt" /></div>
+              <div class="row">
+                <label>Interval (s)</label><input id="m_i" type="number" />
+              </div>
+              <button class="btn" onclick="connMQTT()">Connect</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-cont">
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">Web Security</span>
+            </div>
+            <div class="acc-panel" id="cont_ws">
+              <div class="row"><label>Old login</label><input id="w_u" /></div>
+              <div class="row">
+                <label>Old password</label>
+                <div class="pass-wrapper">
+                  <input id="w_p" type="password" /><span
+                    class="toggle-eye"
+                    onclick="togglePass('w_p')"
+                    >👁️</span
+                  >
+                </div>
+              </div>
+              <div class="row">
+                <label>New login</label><input id="w_u_n" />
+              </div>
+              <div class="row">
+                <label>New password</label>
+                <div class="pass-wrapper">
+                  <input id="w_p_n" type="password" /><span
+                    class="toggle-eye"
+                    onclick="togglePass('w_p_n')"
+                    >👁️</span
+                  >
+                </div>
+              </div>
+              <button class="btn" onclick="setWS()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-cont">
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">Update OS</span>
+            </div>
+            <div class="acc-panel" id="cont_upd">
+              <button
+                class="btn btn-add"
+                style="margin-bottom: 12px"
+                onclick="checkUpdateOS()"
+              >
+                Check update
+              </button>
+              <div>
+                <div class="row">
+                  <label>Current ver.</label><input id="s_cur_ver" readonly />
+                </div>
+
+                <div class="row">
+                  <label>Server ver.</label><input id="s_serv_ver" readonly />
+                </div>
+                <div id="s_serv_notes"></div>
+              </div>
+              <button class="btn" onclick="updateOS()">Update OS</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+    <!-- ************************************************************************************************** -->
     <script>
       const BASE_URL = "";
+      const SENS_MAP = [
+        // key, num of pins, num of values
+        ["bme", 1, 3],
+        ["dht", 1, 2],
+        ["ds", 1, 4],
+        ["tcrt", 1, 1],
+        ["pir", 1, 1],
+        ["ld", 1, 1],
+        ["dr", 1, 1],
+        ["fl", 1, 1],
+        ["lr", 1, 1],
+        ["r", 4, 4],
+      ];
+      const switchers = [
+        "w_en",
+        "tg_en",
+        "m_en",
+        "bme_en",
+        "dht_en",
+        "ds_en",
+        "tcrt_en",
+        "pir_en",
+        "ld_en",
+        "dr_en",
+        "fl_en",
+        "lr_en",
+        "r_en",
+      ];
       let activeIds = 0;
-
-      // const SENSOR_MAP = {
-      //   bme280_out: {
-      //     title: "Наружный воздух (BME280)",
-      //     cards: ["card-bme-t", "card-bme-h", "card-bme-p"],
-      //     gpio: 1,
-      //   },
-      //   tcrt5000: {
-      //     title: "Наружное освещение (TCRT5000)",
-      //     cards: ["card-tcrt"],
-      //     gpio: 1,
-      //   },
-      //   dht22: {
-      //     title: "Внутренний воздух (DHT22)",
-      //     cards: ["card-dht-t", "card-dht-h"],
-      //     gpio: 1,
-      //   },
-      //   lux5516: {
-      //     title: "Внутреннее освещение (5516)",
-      //     cards: ["card-lux-5516"],
-      //     gpio: 1,
-      //   },
-      //   pir: {
-      //     title: "Движение (SR501)",
-      //     cards: ["card-pir"],
-      //     gpio: 1,
-      //   },
-      //   presence: {
-      //     title: "Присутствие (LD2420)",
-      //     cards: ["card-pres"],
-      //     gpio: 1,
-      //   },
-      //   ds18b20: {
-      //     title: "Нагревательный прибор (DS18B20)",
-      //     cards: ["card-t1", "card-t2", "card-t3", "card-t4"],
-      //     gpio: 1,
-      //     onewire: true,
-      //   },
-      //   door: {
-      //     title: "Дверь (Magnet)",
-      //     cards: ["card-door"],
-      //     gpio: 1,
-      //   },
-      //   flood: {
-      //     title: "Затопление (Resistor)",
-      //     cards: ["card-flood"],
-      //     gpio: 1,
-      //   },
-      //   relay: {
-      //     title: "Реле (Block Rele)",
-      //     cards: ["card-r0", "card-r1", "card-r2", "card-r3"],
-      //     gpio: 4,
-      //   },
-      // };
 
       // async function scanDS() {
       //   const pin = document.getElementById("sen_g6").value;
@@ -912,10 +722,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         const el = document.getElementById(id);
         el.type = el.type === "password" ? "text" : "password";
       }
-      // const chBox = document.getElementById("checks");
-      // senNames.forEach((n, i) => {
-      //   chBox.innerHTML += `<label style="display:block; margin:8px 0; font-size:13px"><input type="checkbox" id="ch${i}"> ${n}</label>`;
-      // });
 
       // Добавление нового UserID для Telegram
       function addUserId(val = "") {
@@ -987,7 +793,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           .then((r) => r.json())
           .then((d) => {
             if (d.connected) {
-              document.getElementById("curr-conn").style.display = "block";
+              document.getElementById("cur-wifi").style.display = "block";
               document.getElementById("cur_ssid").innerText = d.ssid;
               document.getElementById("cur_ip").innerText = d.ip;
               document.getElementById("cur_rssi").innerText = d.rssi + " dBm";
@@ -1001,36 +807,30 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
           });
       }
-
-      // fetch(`${BASE_URL}/api/get-all`)
-      //   .then((r) => r.json())
-      //   .then((c) => {
-      //     console.log(c);
-      //     // document.getElementById("tg_en").checked = c.tg_en;
-      //     // document.getElementById("m_en").checked = c.m_en;
-      //     // document.getElementById("bme_en").checked = c.bme_en;
-      //     // document.getElementById("dht_en").checked = c.dht_en;
-      //     // document.getElementById("ds_en").checked = c.ds_en;
-      //     // document.getElementById("tcrt_en").checked = c.tcrt_en;
-      //     // document.getElementById("pir_en").checked = c.pir_en;
-      //     // document.getElementById("ld_en").checked = c.ld_en;
-      //     // document.getElementById("door_en").checked = c.door_en;
-      //     // document.getElementById("fl_en").checked = c.fl_en;
-      //     // document.getElementById("5516_en").checked = c.5516_en;
-      //     // document.getElementById("r_en").checked = c.fl_en;
-
-      //     //document.getElementById("tg_en").checked = c["tg_en"];
-      //     //document.getElementById("m_en").checked = c["m_en"];
-      //     document.getElementById("bme_en").checked = c["bme_en"];
-      //     document.getElementById("dht_en").checked = c["dht_en"];
-      //     document.getElementById("ds_en").checked = c["ds_en"];
-      //     document.getElementById("tcrt_en").checked = c["tcrt_en"];
-      //     document.getElementById("pir_en").checked = c["pir_en"];
-      //     document.getElementById("ld_en").checked = c["ld_en"];
-      //     document.getElementById("door_en").checked = c["door_en"];
-      //     document.getElementById("fl_en").checked = c["fl_en"];
-      //     document.getElementById("5516_en").checked = c["5516_en"];
-      //     document.getElementById("r_en").checked = c["r_en"];
+      // Отправка log/pass для изменения доступа к Homepage
+      function setWS() {
+        const msg = {};
+        msg["w_u"] = document.getElementById("w_u").value;
+        msg["w_p"] = document.getElementById("w_p").value;
+        msg["w_u_n"] = document.getElementById("w_u_n").value;
+        msg["w_p_n"] = document.getElementById("w_p_n").value;
+        fetch(`${BASE_URL}/api/set-ws`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          //mode: "cors",
+          body: JSON.stringify(msg),
+        })
+          .then(() => {
+            document.getElementById("w_u").value = "";
+            document.getElementById("w_p").value = "";
+            document.getElementById("w_u_n").value = "";
+            document.getElementById("w_p_n").value = "";
+            alert("Admin Login&Password was changed.");
+          })
+          .catch((error) => {
+            alert(error);
+          });
+      }
 
       //     document.getElementById("m_ip").value = c.m_ip;
       //     document.getElementById("m_port").value = c.m_port;
@@ -1055,26 +855,32 @@ const char index_html[] PROGMEM = R"rawliteral(
             d.r.forEach(
               (v, i) => (document.getElementById("r" + i).checked = v)
             );
+          })
+          .catch((error) => {
+            console.error(error);
           });
       }, 1000);
 
-      // Запуск периодического запроса значений с датчиков, период 1 раз в 2 секунды
+      // Запуск периодического запроса значений с датчиков, период 1 раз в 5 секунд
       setInterval(() => {
         fetch(`${BASE_URL}/api/values`)
           .then((r) => r.json())
           .then((v) => {
             [
-              "in_t",
-              "in_h",
-              "out_t",
-              "out_h",
-              "lux",
-              "lux_out",
-              "t1",
-              "t2",
+              "bme_v0",
+              "bme_v1",
+              "bme_v2",
+              "dht_v0",
+              "dht_v1",
+              "ds_v0",
+              "ds_v1",
+              "ds_v2",
+              "ds_v3",
+              "tcrt_v0",
+              "lr_v0",
             ].forEach((f) => {
-              if (document.getElementById("v_" + f))
-                document.getElementById("v_" + f).innerText = v[f];
+              if (document.getElementById("card_" + f))
+                document.getElementById("card_" + f).innerText = v[f];
             });
             const updateStatus = (id, val, tT, tF) => {
               const el = document.getElementById(id);
@@ -1082,17 +888,27 @@ const char index_html[] PROGMEM = R"rawliteral(
               el.innerText = val ? tT : tF;
               el.style.color = val ? "red" : "#007bff";
             };
-            updateStatus("v_pir", v.pir, "ЕСТЬ", "НЕТ");
-            updateStatus("v_pres", v.pres, "ЕСТЬ", "НЕТ");
-            updateStatus("v_door", v.door, "ОТКР", "ЗАКР");
-            updateStatus("v_flood", v.flood, "ЕСТЬ", "НЕТ");
+            updateStatus("card_pir_v0", v.pir_v, "ЕСТЬ", "НЕТ");
+            updateStatus("card_ld_v0", v.ld_v, "ЕСТЬ", "НЕТ");
+            updateStatus("card_dr_v0", v.dr_v, "ОТКР", "ЗАКР");
+            updateStatus("card_fl_v0", v.fl_v, "ЕСТЬ", "НЕТ");
+          })
+          .catch((error) => {
+            console.error(error);
           });
-      }, 2000);
+      }, 5000);
 
       // Отправка запроса на переключение реле
       function setRelay(idx) {
         const st = document.getElementById("r" + idx).checked;
         fetch(`${BASE_URL}/api/set-relay?id=${idx}&st=${st}`);
+      }
+
+      // Отправка запроса на переключение переключателя
+      function setSwitcher(idx) {
+        const f = new FormData();
+        f.append(idx, document.getElementById(idx).checked);
+        fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f });
       }
 
       // Отправка SSID/PASS для подключения к локальной сети WiFi
@@ -1108,53 +924,213 @@ const char index_html[] PROGMEM = R"rawliteral(
         );
       }
 
-      // /* Получение настроек датчиков с сервера */
-      // document.addEventListener("DOMContentLoader", (event) => {
-      //   console.log("DOM full loaded.");
-      //   getSettings();
-      // });
+      document.addEventListener("DOMContentLoaded", () => {
+        renderSensorsInfo();
+        showCurrentOS();
+        getSettings();
+      });
 
-      document.addEventListener("DOMContentLoaded", getSettings());
+      function showCurrentOS() {
+        document.getElementById(`s_cur_ver`).value = "0.2.7";
+      }
+
+      function renderSensorsInfo() {
+        function generateSensorCards() {
+          let html = "";
+          for (let i = 0; i < SENS_MAP.length - 1; i++)
+            for (let j = 0; j < SENS_MAP[i][2]; j++)
+              html += `<div class="card" id="card_${SENS_MAP[i][0]}${j}"><h4 id="card_${SENS_MAP[i][0]}_l${j}"></h4><div id="card_${SENS_MAP[i][0]}_v${j}">--</div></div>`;
+          for (let i = 0; i < 4; i++)
+            html += `<div class="card" id="card-r${i}"><h4 id="card_r_l${i}"></h4><label class="switch"><input type="checkbox" id="r${i}" onchange="setRelay(${i})" /><span class="slider"></span></label></div>`;
+          document.getElementById(`cards-cont`).innerHTML = html;
+          html = "";
+        }
+        function generateSensorSettings() {
+          SENS_MAP.forEach((sensData) => {
+            console.log(sensData);
+            let html = "";
+            // Вывод GPIO
+            for (let j = 0; j < sensData[1]; j++)
+              html += `<div class="row"><label>GPIO${
+                sensData[1] === 1 ? "" : " " + (j + 1)
+              }:</label><input type="text" id="${sensData[0]}_p${j}"/></div>`;
+            // Вывод Label
+            for (let j = 0; j < sensData[2]; j++)
+              html += `<div class="row"><label>Label${
+                sensData[2] === 1 ? "" : " " + (j + 1)
+              }:</label><input type="text" id="${sensData[0]}_l${j}"/></div>`;
+            // Вывод Topic
+            for (let j = 0; j < sensData[2]; j++)
+              html += `<div class="row"><label>Topic${
+                sensData[2] === 1 ? "" : " " + (j + 1)
+              }:</label><input type="text" id="${sensData[0]}_t${j}"/></div>`;
+
+            html += `<button class="btn" onclick="applySet('${sensData[0]}')">Apply</button>`;
+
+            document.getElementById(`cont_${sensData[0]}`).innerHTML = html;
+          });
+        }
+        generateSensorCards();
+        generateSensorSettings();
+      }
 
       function getSettings() {
-        // Выполняем GET запрос к API
-        fetch(`${BASE_URL}/api/get-all`) // Обычно используется get-all для получения всех настроек сразу
+        fetch(`${BASE_URL}/api/get-all`)
           .then((response) => {
-            if (!response.ok) throw new Error("Ошибка сети");
+            if (!response.ok) throw new Error("Error! No response.");
             return response.json();
           })
           .then((data) => {
-            const switchers = [
-              "tg_en",
-              "m_en",
-              "bme_en",
-              "dht_en",
-              "ds_en",
-              "tcrt_en",
-              "pir_en",
-              "ld_en",
-              "door_en",
-              "fl_en",
-              "5516_en",
-              "r_en",
-            ];
+            // if (data.connected) {
 
-            switchers.forEach((id) => {
-              const element = document.getElementById(id);
-              if (element) element.checked = data[id];
+            const values = ["m_ip", "m_port", "m_bt", "m_i"];
+
+            switchers.forEach((key) => {
+              const element = document.getElementById(key);
+              if (element) element.checked = data[key];
             });
 
-            document.getElementById("m_ip").value = data[m_ip];
-            document.getElementById("m_port").value = data[m_port];
-            document.getElementById("m_t").value = data[m_t];
-            document.getElementById("m_i").value = data[m_i];
+            values.forEach((key) => {
+              const el = document.getElementById(key);
+              if (el) el.value = data[key];
+              const el_card = document.getElementById(`card_${key}`);
+              if (el_card) el_card.textContent = data[key];
+            });
 
-            for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
-            if (activeIds === 0) addUserId("");
+            // arrays.forEach((key) => {
+            //   if (data[key] && Array.isArray(data[key])) {
+            //     for (let i = 0; i < data[key].length; i++) {
+            //       const el = document.getElementById(`${key + i}`);
+            //       if (el) el.value = data[key][i];
+            //       const el_card = document.getElementById(`card_${key}${i}`);
+            //       if (el_card) el_card.textContent = data[key][i];
+            //     }
+            //   }
+            // });
+
+            SENS_MAP.forEach((sensData) => {
+              //console.log(sensData[0]);
+              for (let i = 0; i < sensData[1]; i++) {
+                // Sensors, Pin
+                const pin = document.getElementById(`${sensData[0]}_p${i}`);
+                if (pin) pin.value = data[`${sensData[0]}_p`][i];
+              }
+              for (let i = 0; i < sensData[2]; i++) {
+                // Monitor, Title
+                const title = document.getElementById(
+                  `card_${sensData[0]}_l${i}`
+                );
+                if (title) title.textContent = data[`${sensData[0]}_l`][i];
+                // Sensors, Label
+                const label = document.getElementById(`${sensData[0]}_l${i}`);
+                if (label) label.value = data[`${sensData[0]}_l`][i];
+                // Sensors, Topic
+                const topic = document.getElementById(`${sensData[0]}_t${i}`);
+                if (topic) topic.value = data[`${sensData[0]}_t`][i];
+              }
+            });
+
+            // for (let i = 0; i < 4; i++) {
+            //   const element = document.getElementById(`r_p${i}`);
+            //   if (element) element.value = data.r_p[i];
+            // }
+
+            // document.getElementById("m_ip").value = data[m_ip];
+            // document.getElementById("m_port").value = data[m_port];
+            // document.getElementById("m_t").value = data[m_t];
+            // document.getElementById("m_i").value = data[m_i];
+
+            // for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
+            // if (activeIds === 0) addUserId("");
+
+            // } else setTimeout(getSettings, 1000);
           })
           .catch((error) => {
             console.error(error);
           });
+      }
+      function applySet(key) {
+        //console.log(`ApplaySet(${key})`);
+        for (let i = 0; i < SENS_MAP.length; i++) {
+          if (SENS_MAP[i][0] === key) {
+            const msg = { pins: [], labels: [], topics: [] };
+            for (let j = 0; j < SENS_MAP[i][2]; j++) {
+              msg.labels.push(
+                document.getElementById(`${SENS_MAP[i][0]}_l${j}`).value
+              );
+              msg.topics.push(
+                document.getElementById(`${SENS_MAP[i][0]}_t${j}`).value
+              );
+              msg.pins.push(
+                Number(document.getElementById(`${SENS_MAP[i][0]}_p${j}`).value)
+              );
+            }
+            fetch(`${BASE_URL}/api/set-sens`, {
+              method: "POST",
+              body: JSON.stringify(msg),
+            }).then(() => alert("Saved."));
+          }
+        }
+      }
+
+      // function checkUpdateOS() {
+      //   // fetch(`${BASE_URL}/api/get-remote-manifest`, {
+      //   fetch(
+      //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
+      //     {
+      //       method: "GET",
+      //       headers: { Accept: "application/json", mode: "cors" },
+      //     }
+      //   )
+      //     .then((response) => {
+      //       if (!response.ok)
+      //         throw new Error(`Ошибка HTTP: ${response.status}`);
+      //       return response.json();
+      //     })
+      //     .then((data) => {
+      //       console.log("Версия на сервере:", data.version);
+      //       console.log("Описание:", data.notes);
+      //       console.log("Ссылка на прошивку:", data.url);
+      //       document.getElementById("s_serv_ver").value = data.version;
+      //       document.getElementById("s_serv_notes").textContent = data.notes;
+      //       return data;
+      //     })
+      //     .catch((error) => {
+      //       console.error("Не удалось получить манифест:", error);
+      //     });
+      // }
+      function checkUpdateOS() {
+        const MANIFEST_URL =
+          "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        fetch(MANIFEST_URL, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        })
+          .then((response) => {
+            if (!response.ok)
+              throw new Error(`Ошибка HTTP: ${response.status}`);
+            return response.json();
+          })
+          .then((data) => {
+            console.log("Версия на сервере:", data.version);
+            console.log("Описание:", data.notes);
+            console.log("Ссылка на прошивку:", data.url);
+            document.getElementById("s_serv_ver").value = data.version;
+            document.getElementById("s_serv_notes").textContent = data.notes;
+            return data;
+          })
+          .catch((error) => {
+            console.error("Не удалось получить манифест:", error);
+          });
+      }
+      function updateOS() {
+        const f = new FormData();
+        f.append("up-to-date", true);
+        fetch(`${BASE_URL}/api/update`, { method: "POST", body: f }).then(
+          (response) => {
+            alert("Checked for new version and update.");
+          }
+        );
       }
       function saveSens() {
         const f = new FormData();
@@ -1164,37 +1140,39 @@ const char index_html[] PROGMEM = R"rawliteral(
         f.append("tcrt_en", document.getElementById("tcrt_en").checked);
         f.append("pir_en", document.getElementById("pir_en").checked);
         f.append("ld_en", document.getElementById("ld_en").checked);
-        f.append("door_en", document.getElementById("door_en").checked);
+        f.append("dr_en", document.getElementById("dr_en").checked);
         f.append("fl_en", document.getElementById("fl_en").checked);
-        f.append("5516_en", document.getElementById("5516_en").checked);
+        f.append("lr_en", document.getElementById("lr_en").checked);
         f.append("r_en", document.getElementById("r_en").checked);
         fetch(`${BASE_URL}/api/set-sens`, { method: "POST", body: f }).then(
-          () => alert("Сохранено")
+          () => alert("Saved.")
         );
       }
       function saveSrv() {
         const f = new FormData();
+        f.append("w_en", document.getElementById("w_en").checked);
         f.append("tg_en", document.getElementById("tg_en").checked);
-        f.append("tg", document.getElementById("tg_token").value);
-        f.append("ids_c", activeIds);
+        f.append("tg_t", document.getElementById("tg_t").value);
+        f.append("tg_ids", activeIds);
         for (let i = 0; i < activeIds; i++)
           f.append("id" + i, document.getElementById("id" + i).value);
-        f.append("m_en", document.getElementById("mqtt_en").checked);
+        f.append("m_en", document.getElementById("m_en").checked);
         f.append("m_ip", document.getElementById("m_ip").value);
         f.append("m_port", document.getElementById("m_port").value);
         f.append("m_u", document.getElementById("m_u").value);
         f.append("m_p", document.getElementById("m_p").value);
-        f.append("m_t", document.getElementById("m_t").value);
+        f.append("m_bt", document.getElementById("m_t").value);
         f.append("m_i", document.getElementById("m_i").value);
-        f.append("w_u", document.getElementById("w_u").value);
-        f.append("w_p", document.getElementById("w_p").value);
+        // f.append("w_u", document.getElementById("w_u").value);
+        // f.append("w_p", document.getElementById("w_p").value);
         fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f }).then(() =>
-          alert("Сохранено")
+          alert("Saved.")
         );
       }
     </script>
   </body>
 </html>
+
 
 )rawliteral";
 

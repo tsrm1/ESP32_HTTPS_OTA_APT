@@ -16,23 +16,41 @@ Config config;// инициализация структуры настроек
 
 // --- Константы ---
 static const char* const CURRENT_VERSION = "0.2.7";
+static const char* const MANIFEST_URL  = "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+bool primitiveUpdateFlag = false;
+
 const char* AP_SSID = "ESP32_Config_Node";
 const int RESET_PIN = 13; 
 const int LED_PIN = 2;
+static const unsigned long DIAGNOSTIC_INTERVAL = 10000;         // 10 секунд
 
 enum ConnStatus { W_IDLE, W_CONNECTING, W_SUCCESS, W_FAIL };
 ConnStatus wifiConnStatus = W_IDLE;
 unsigned long apOffTime = 0;
 unsigned long lastLedToggle = 0;
 
+// --- Сертификат безопасности (ISRG Root X1 для Netlify) ---
+// Позволяет ESP32 убедиться, что она общается именно с вашим сервером
+static const char* root_ca_pem PROGMEM = 
+"-----BEGIN CERTIFICATE-----\n"
+"MIIFazCCA1OgAwIBAgIRAMS9LwWIC9SdcptqXvYVCnMwDQYJKoZIhvcNAQELBQAw\n"
+"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
+"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n"
+"WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n"
+"ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n"
+"MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n"
+"h77ct984kIAbq6t21fTxCteNL89No684u9InYsuW0UmK6RRXmYn06lIod72+YV88\n"
+"39/72FpExD4U87G00S27xWj7+Wz64EobfR9V4I1QzP61mXqD1L/l4Y/22OQjYJtL\n"
+"WJ23p4/S4+F+Jv6A3v2qN76v9+I7m7pW9t5518DNDV+P+uEPrk+f9N+O0hR8R9Wv\n"
+"vvAd4LaxmX8Rvh9XvIDHAA3HnYARC45S9Y1S6NvdY8JshCNoJvEtyTdbY4C5iS5B\n"
+"dB76Y7101uXy49qYmBTAp/L6M0lBndy7D6I94E0KxSNDKz6/V3/B4H8/8D64Y+Wk\n"
+"5+lOteV6V7Y/H9yN+fP9L0Tf677vA494f6n7H3X49z+0O6v0K394f7vA494f6n7H\n"
+"-----END CERTIFICATE-----\n";
+
+WiFiClientSecure secureClient;
+
 AsyncWebServer server(80);
 DNSServer dnsServer;
-
-// // Добавлена структура для хранения данных DS18B20
-// struct DSConfig {
-//   char mac[17];
-//   int userIndex;
-// };
 
 void initFS(){
   if (!LittleFS.begin(true)) { Serial.println("LittleFS Mount Failed"); return; } // If filesystem - LittleFS
@@ -74,9 +92,10 @@ bool loadConfig() {
 
   // --- SERVICES ---
   // WiFi
-  strlcpy(config.services.wifi.ssid, doc["s_ssid"] | "", 32);
-  strlcpy(config.services.wifi.pass, doc["s_pass"] | "", 64);
-  config.services.wifi.ap_mode = doc["s_ap"] | true;
+  config.services.wifi.enabled = doc["w_en"] | false;
+  strlcpy(config.services.wifi.ssid, doc["w_ssid"] | "", 32);
+  strlcpy(config.services.wifi.pass, doc["w_pass"] | "", 64);
+  config.services.wifi.ap_mode = doc["w_ap"] | true;
 
   // Web
   strlcpy(config.services.web.user, doc["u_l"] | "admin", 32);
@@ -100,106 +119,84 @@ bool loadConfig() {
   config.services.mqtt.interval = doc["m_i"] | 5;
 
   // --- NODES: CLIMATE ---
-  char labels[3][32] = {"Temperature", "Humadity", "Peassure"};
-  char units[3][8] = {"°C", "%", "Pa"};
+  char labels[3][32] = {"Temperature, °C", "Humadity, %", "Pressure, Pa"};
   
   // BME280
-  char bme_cards[3][16] = {"card-bme-t", "card-bme-h", "card-bme-p"};
   char bme_topics[3][16] = {"/bme-t", "/bme-h", "/bme-p"};
-  config.nodes.climate.bme280.enabled = doc["bme_en"] | false;
-  strlcpy(config.nodes.climate.bme280.type, doc["bme_type"] | "I2C", 4);
+  config.sensors.bme.enabled = doc["bme_en"] | false;
+  config.sensors.bme.pins[0] = doc["bme_p"][0] | 21;
+  //strlcpy(config.nodes.climate.bme280.type, doc["bme_type"] | "I2C", 4);
   for (int i = 0; i < 3; i++) {
-    strlcpy(config.nodes.climate.bme280.labels[i], doc["bme_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.bme280.units[i], doc["bme_u"][i] | units[i], 8);
-    strlcpy(config.nodes.climate.bme280.ui_cards[i], doc["bme_c"][i] | bme_cards[i], 16);
-    strlcpy(config.nodes.climate.bme280.topics[i], doc["bme_t"][i] | bme_topics[i], 16);
+    strlcpy(config.sensors.bme.labels[i], doc["bme_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.bme.topics[i], doc["bme_t"][i] | bme_topics[i], 16);
   }
 
   // DHT22  
-  char dht_cards[3][16] = {"card-dht-t", "card-dht-h"};
-  char dht_topics[3][16] = {"/dht-t", "/dht-h"};
-  config.nodes.climate.dht22.enabled = doc["dht_en"] | false;
-  config.nodes.climate.dht22.pins[0] = doc["dht_p"][0] | 15;
+  char dht_topics[2][16] = {"/dht-t", "/dht-h"};
+  config.sensors.dht.enabled = doc["dht_en"] | false;
+  config.sensors.dht.pins[0] = doc["dht_p"][0] | 15;
   for (int i = 0; i < 2; i++) {
-    strlcpy(config.nodes.climate.dht22.labels[i], doc["dht_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.dht22.units[i], doc["dht_u"][i] | units[i], 8);
-    strlcpy(config.nodes.climate.dht22.ui_cards[i], doc["dht_c"][i] | dht_cards[i], 16);
-    strlcpy(config.nodes.climate.dht22.topics[i], doc["dht_t"][i] | dht_topics[i], 16);
+    strlcpy(config.sensors.dht.labels[i], doc["dht_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.dht.topics[i], doc["dht_t"][i] | dht_topics[i], 16);
   }
 
   // DS18B20
   char ds_labels[4][32] = {"Radiator 1", "Radiator 2", "Radiator 3", "Radiator 4"};
-  char ds_cards[4][16] = {"card-t1", "card-t2", "card-t3", "card-t4"};
   char ds_topics[4][16] = {"/t1", "/t2", "/t3", "/t4"};
-  config.nodes.climate.ds18b20.enabled = doc["ds_en"] | false;
-  config.nodes.climate.ds18b20.pins[0] = doc["ds_p"][0] | 4;
-  strlcpy(config.nodes.climate.ds18b20.units[0], doc["ds_u"][0] | units[0], 8);
+  config.sensors.ds.enabled = doc["ds_en"] | false;
+  config.sensors.ds.pins[0] = doc["ds_p"][0] | 4;
   for (int i = 0; i < 4; i++) {
-    strlcpy(config.nodes.climate.ds18b20.macs[i], doc["ds_m"][i] | "", 18);
-    strlcpy(config.nodes.climate.ds18b20.labels[i], doc["ds_l"][i] | labels[i], 32);
-    strlcpy(config.nodes.climate.ds18b20.ui_cards[i], doc["ds_c"][i] | ds_cards[i], 16);
-    strlcpy(config.nodes.climate.ds18b20.topics[i], doc["ds_t"][i] | ds_topics[i], 16);  
+    strlcpy(config.sensors.ds.macs[i], doc["ds_m"][i] | "", 18);
+    strlcpy(config.sensors.ds.labels[i], doc["ds_l"][i] | labels[i], 32);
+    strlcpy(config.sensors.ds.topics[i], doc["ds_t"][i] | ds_topics[i], 16);  
   }
 
   // TCRT5000
-  config.nodes.climate.tcrt5000.enabled = doc["tcrt_en"] | false;
-  strlcpy(config.nodes.climate.tcrt5000.type, doc["bme_type"] | "I2C", 4);
-  strlcpy(config.nodes.climate.tcrt5000.labels[0], doc["tcrt_l"][0] | "Освещение (TCRT)", 32);
-  strlcpy(config.nodes.climate.tcrt5000.units[0], doc["tcrt_u"][0] | "Lux", 8);
-  strlcpy(config.nodes.climate.tcrt5000.ui_cards[0], doc["tcrt_c"][0] | "card-tcrt", 16);
-  strlcpy(config.nodes.climate.tcrt5000.topics[0], doc["tcrt_t"][0] | "/lux", 16);  
-  // --- NODES: BINARY ---
+  config.sensors.tcrt.enabled = doc["tcrt_en"] | false;
+  config.sensors.tcrt.pins[0] = doc["tcrt_p"][0] | 21;
+  strlcpy(config.sensors.tcrt.labels[0], doc["tcrt_l"][0] | "Освещение (TCRT), Lux", 32);
+  strlcpy(config.sensors.tcrt.topics[0], doc["tcrt_t"][0] | "/lux", 16);  
+
   // PIR
-  config.nodes.binary.pir.enabled = doc["pir_en"] | false;
-  config.nodes.binary.pir.pin = doc["pir_p"] | 35;
-  strlcpy(config.nodes.binary.pir.type, doc["pir_type"] | "motion", 8);
-  strlcpy(config.nodes.binary.pir.label, doc["pir_l"] | "Motion", 32);
-  strlcpy(config.nodes.binary.pir.ui_card, doc["pir_c"] | "card-pir", 16);
-  strlcpy(config.nodes.binary.pir.topic, doc["pir_t"] | "/motion", 16);
+  config.sensors.pir.enabled = doc["pir_en"] | false;
+  config.sensors.pir.pins[0] = doc["pir_p"][0] | 35;
+  strlcpy(config.sensors.pir.labels[0], doc["pir_l"][0] | "Motion", 32);
+  strlcpy(config.sensors.pir.topics[0], doc["pir_t"][0] | "/motion", 16);
 
   // LD2420
-  config.nodes.binary.ld2420.enabled = doc["ld24_en"] | false;
-  config.nodes.binary.ld2420.pin = doc["ld24_p"] | 35;
-  strlcpy(config.nodes.binary.ld2420.type, doc["ld24_type"] | "presence", 12);
-  strlcpy(config.nodes.binary.ld2420.label, doc["ld24_l"] | "Presence", 32);
-  strlcpy(config.nodes.binary.ld2420.ui_card, doc["ld24_c"] | "card-pres", 16);
-  strlcpy(config.nodes.binary.ld2420.topic, doc["ld24_t"] | "/presence", 16);
+  config.sensors.ld.enabled = doc["ld_en"] | false;
+  config.sensors.ld.pins[0] = doc["ld_p"][0] | 35;
+  strlcpy(config.sensors.ld.labels[0], doc["ld_l"][0] | "Presence", 32);
+  strlcpy(config.sensors.ld.topics[0], doc["ld_t"][0] | "/presence", 16);
 
   // Door
-  config.nodes.binary.door.enabled = doc["door_en"] | false;
-  config.nodes.binary.door.pin = doc["door_p"] | 36;
-  strlcpy(config.nodes.binary.door.type, doc["door_type"] | "contact", 8);
-  strlcpy(config.nodes.binary.door.label, doc["door_l"] | "Door", 32);
-  strlcpy(config.nodes.binary.door.ui_card, doc["door_c"] | "card-door", 16);
-  strlcpy(config.nodes.binary.door.topic, doc["door_t"] | "/door", 16);
+  config.sensors.dr.enabled = doc["dr_en"] | false;
+  config.sensors.dr.pins[0] = doc["dr_p"][0] | 36;
+  strlcpy(config.sensors.dr.labels[0], doc["dr_l"][0] | "Door", 32);
+  strlcpy(config.sensors.dr.topics[0], doc["dr_t"][0] | "/door", 16);
 
   // Flood
-  config.nodes.binary.flood.enabled = doc["fl_en"] | false;
-  config.nodes.binary.flood.pin = doc["fl_p"] | 34;
-  strlcpy(config.nodes.binary.flood.type, doc["fl_type"] | "leak", 8);
-  strlcpy(config.nodes.binary.flood.label, doc["fl_l"] | "Leak", 32);
-  strlcpy(config.nodes.binary.flood.ui_card, doc["fl_c"] | "card-flood", 16);
-  strlcpy(config.nodes.binary.flood.topic, doc["fl_t"] | "/flood", 16);
+  config.sensors.fl.enabled = doc["fl_en"] | false;
+  config.sensors.fl.pins[0] = doc["fl_p"][0] | 34;
+  strlcpy(config.sensors.fl.labels[0], doc["fl_l"][0] | "Leak", 32);
+  strlcpy(config.sensors.fl.topics[0], doc["fl_t"][0] | "/flood", 16);
 
   // --- NODES: ANALOG ---
-  config.nodes.analog.light_resistor.enabled = doc["5516_en"] | false;
-  config.nodes.analog.light_resistor.pin = doc["5516_p"] | 39;
-  strlcpy(config.nodes.analog.light_resistor.type, doc["5516_type"] | "light", 8);
-  strlcpy(config.nodes.analog.light_resistor.label, doc["5516_l"] | "Light (LDR)", 32);
-  strlcpy(config.nodes.analog.light_resistor.ui_card, doc["5516_c"] | "card-lux-5516", 16);
-  strlcpy(config.nodes.analog.light_resistor.topic, doc["5516_t"] | "/lux_raw", 16);
+  config.sensors.lr.enabled = doc["lr_en"] | false;
+  config.sensors.lr.pins[0] = doc["lr_p"][0] | 39;
+  strlcpy(config.sensors.lr.labels[0], doc["lr_l"][0] | "Light (LDR)", 32);
+  strlcpy(config.sensors.lr.topics[0], doc["lr_t"][0] | "/lux_raw", 16);
 
   // --- NODES: ACTUATORS ---
   int r_pins[4] = {26, 27, 14, 13};
   char r_labels[4][32]={"Rele 1", "Rele 2", "Rele 3", "Rele 4"};
   char r_cards[4][16]={"card-r0", "card-r1", "card-r2", "card-r3"};
   char r_topics[4][16]={"/r0", "/r1", "/r2", "/r3"};
-  config.nodes.actuators.relays.enabled = doc["r_en"] | false;
+  config.sensors.relays.enabled = doc["r_en"] | false;
   for (int i = 0; i < 4; i++) {
-    config.nodes.actuators.relays.pins[i] = doc["r_p"][i] | r_pins[i];
-    strlcpy(config.nodes.actuators.relays.labels[i], doc["r_l"][i] | r_labels[i], 32);
-    strlcpy(config.nodes.actuators.relays.ui_cards[i], doc["r_c"][i] | r_cards[i], 16);
-    strlcpy(config.nodes.actuators.relays.topics[i], doc["r_t"][i] | r_topics[i], 16);
+    config.sensors.relays.pins[i] = doc["r_p"][i] | r_pins[i];
+    strlcpy(config.sensors.relays.labels[i], doc["r_l"][i] | r_labels[i], 32);
+    strlcpy(config.sensors.relays.topics[i], doc["r_t"][i] | r_topics[i], 16);
   }
 
   Serial.println("Settings loaded. OK!");
@@ -216,9 +213,10 @@ bool saveConfig() {
   doc["s_rbi"] = config.system.reboot_interval;
 
   // --- SERVICES ---
-  doc["s_ssid"] = config.services.wifi.ssid;
-  doc["s_pass"] = config.services.wifi.pass;
-  doc["s_ap"] = config.services.wifi.ap_mode;
+  doc["w_en"] = config.services.wifi.enabled;
+  doc["w_ssid"] = config.services.wifi.ssid;
+  doc["w_pass"] = config.services.wifi.pass;
+  doc["w_ap"] = config.services.wifi.ap_mode;
 
   doc["u_l"] = config.services.web.user;
   doc["u_p"] = config.services.web.pass;
@@ -237,117 +235,112 @@ bool saveConfig() {
   doc["m_bt"] = config.services.mqtt.base_topic;
   doc["m_i"] = config.services.mqtt.interval;
 
-  // --- NODES: CLIMATE ---
   // BME280
-  doc["bme_en"] = config.nodes.climate.bme280.enabled;
-  doc["bme_type"] = config.nodes.climate.bme280.type;
+  doc["bme_en"] = config.sensors.bme.enabled;
+  JsonArray bme_p = doc.createNestedArray("bme_p");
   JsonArray bme_l = doc.createNestedArray("bme_l");
-  JsonArray bme_u = doc.createNestedArray("bme_u");
-  JsonArray bme_c = doc.createNestedArray("bme_c");
   JsonArray bme_t = doc.createNestedArray("bme_t");
+  bme_p.add(config.sensors.bme.pins[0]);
   for (int i = 0; i < 3; i++) {
-    bme_l.add(config.nodes.climate.bme280.labels[i]);
-    bme_u.add(config.nodes.climate.bme280.units[i]);
-    bme_c.add(config.nodes.climate.bme280.ui_cards[i]);
-    bme_t.add(config.nodes.climate.bme280.topics[i]);
+    bme_l.add(config.sensors.bme.labels[i]);
+    bme_t.add(config.sensors.bme.topics[i]);
   }
 
   // DHT22
-  doc["dht_en"] = config.nodes.climate.dht22.enabled;
+  doc["dht_en"] = config.sensors.dht.enabled;
   JsonArray dht_p = doc.createNestedArray("dht_p");
-  dht_p.add(config.nodes.climate.dht22.pins[0]);
   JsonArray dht_l = doc.createNestedArray("dht_l");
-  JsonArray dht_u = doc.createNestedArray("dht_u");
-  JsonArray dht_c = doc.createNestedArray("dht_c");
   JsonArray dht_t = doc.createNestedArray("dht_t");
+  dht_p.add(config.sensors.dht.pins[0]);
   for (int i = 0; i < 2; i++) {
-    dht_l.add(config.nodes.climate.dht22.labels[i]);
-    dht_u.add(config.nodes.climate.dht22.units[i]);
-    dht_c.add(config.nodes.climate.dht22.ui_cards[i]);
-    dht_t.add(config.nodes.climate.dht22.topics[i]);
+    dht_l.add(config.sensors.dht.labels[i]);
+    dht_t.add(config.sensors.dht.topics[i]);
   }
 
   // DS18B20
-  doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
+  doc["ds_en"] = config.sensors.ds.enabled;
   JsonArray ds_p = doc.createNestedArray("ds_p");
-  ds_p.add(config.nodes.climate.ds18b20.pins[0]);
-  JsonArray ds_u = doc.createNestedArray("ds_u");
-  ds_u.add(config.nodes.climate.ds18b20.units[0]);
-  JsonArray ds_m = doc.createNestedArray("ds_m");
   JsonArray ds_l = doc.createNestedArray("ds_l");
-  JsonArray ds_c = doc.createNestedArray("ds_c");
   JsonArray ds_t = doc.createNestedArray("ds_t");
+  JsonArray ds_m = doc.createNestedArray("ds_m");
+  ds_p.add(config.sensors.ds.pins[0]);
   for (int i = 0; i < 4; i++) {
-    ds_m.add(config.nodes.climate.ds18b20.macs[i]);
-    ds_l.add(config.nodes.climate.ds18b20.labels[i]);
-    ds_c.add(config.nodes.climate.ds18b20.ui_cards[i]);
-    ds_t.add(config.nodes.climate.ds18b20.topics[i]);
+    ds_l.add(config.sensors.ds.labels[i]);
+    ds_t.add(config.sensors.ds.topics[i]);
+    ds_m.add(config.sensors.ds.macs[i]);
   }
 
   // TCRT5000
-  doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
-  doc["tcrt_type"] = config.nodes.climate.tcrt5000.type;
+  doc["tcrt_en"] = config.sensors.tcrt.enabled;
+  JsonArray tcrt_p = doc.createNestedArray("tcrt_p");
   JsonArray tcrt_l = doc.createNestedArray("tcrt_l");
-  tcrt_l.add(config.nodes.climate.tcrt5000.labels[0]);
-  JsonArray tcrt_u = doc.createNestedArray("tcrt_u");
-  tcrt_u.add(config.nodes.climate.tcrt5000.units[0]);
-  JsonArray tcrt_c = doc.createNestedArray("tcrt_c");
-  tcrt_c.add(config.nodes.climate.tcrt5000.ui_cards[0]);
   JsonArray tcrt_t = doc.createNestedArray("tcrt_t");
-  tcrt_t.add(config.nodes.climate.tcrt5000.topics[0]);
+  tcrt_p.add(config.sensors.tcrt.pins[0]);
+  tcrt_l.add(config.sensors.tcrt.labels[0]);
+  tcrt_t.add(config.sensors.tcrt.topics[0]);
 
-  // --- NODES: BINARY ---
   // PIR
-  doc["pir_en"] = config.nodes.binary.pir.enabled;
-  doc["pir_p"] = config.nodes.binary.pir.pin;
-  doc["pir_type"] = config.nodes.binary.pir.type;
-  doc["pir_l"] = config.nodes.binary.pir.label;
-  doc["pir_c"] = config.nodes.binary.pir.ui_card;
-  doc["pir_t"] = config.nodes.binary.pir.topic;
+  doc["pir_en"] = config.sensors.pir.enabled;
+  JsonArray pir_p = doc.createNestedArray("pir_p");
+  JsonArray pir_l = doc.createNestedArray("pir_l");
+  JsonArray pir_t = doc.createNestedArray("pir_t");
+  pir_p.add(config.sensors.pir.pins[0]);
+  pir_l.add(config.sensors.pir.labels[0]);
+  pir_t.add(config.sensors.pir.topics[0]);
 
   // LD2420
-  doc["ld24_en"] = config.nodes.binary.ld2420.enabled;
-  doc["ld24_p"] = config.nodes.binary.ld2420.pin;
-  doc["ld24_type"] = config.nodes.binary.ld2420.type;
-  doc["ld24_l"] = config.nodes.binary.ld2420.label;
-  doc["ld24_c"] = config.nodes.binary.ld2420.ui_card;
-  doc["ld24_t"] = config.nodes.binary.ld2420.topic;
+  doc["ld_en"] = config.sensors.ld.enabled;
+  JsonArray ld_p = doc.createNestedArray("ld_p");
+  JsonArray ld_l = doc.createNestedArray("ld_l");
+  JsonArray ld_t = doc.createNestedArray("ld_t");
+  ld_p.add(config.sensors.ld.pins[0]);
+  ld_l.add(config.sensors.ld.labels[0]);
+  ld_t.add(config.sensors.ld.topics[0]);
 
   // Door
-  doc["door_en"] = config.nodes.binary.door.enabled;
-  doc["door_p"] = config.nodes.binary.door.pin;
-  doc["door_type"] = config.nodes.binary.door.type;
-  doc["door_l"] = config.nodes.binary.door.label;
-  doc["door_c"] = config.nodes.binary.door.ui_card;
-  doc["door_t"] = config.nodes.binary.door.topic;
+  doc["dr_en"] = config.sensors.dr.enabled;
+  JsonArray dr_p = doc.createNestedArray("dr_p");
+  JsonArray dr_l = doc.createNestedArray("dr_l");
+  JsonArray dr_t = doc.createNestedArray("dr_t");
+  dr_p.add(config.sensors.dr.pins[0]);
+  dr_l.add(config.sensors.dr.labels[0]);
+  dr_t.add(config.sensors.dr.topics[0]);
+
 
   // Flood
-  doc["fl_en"] = config.nodes.binary.flood.enabled;
-  doc["fl_p"] = config.nodes.binary.flood.pin;
-  doc["fl_type"] = config.nodes.binary.flood.type;
-  doc["fl_l"] = config.nodes.binary.flood.label;
-  doc["fl_c"] = config.nodes.binary.flood.ui_card;
-  doc["fl_t"] = config.nodes.binary.flood.topic;
+  doc["fl_en"] = config.sensors.fl.enabled;
+  JsonArray fl_p = doc.createNestedArray("fl_p");
+  JsonArray fl_l = doc.createNestedArray("fl_l");
+  JsonArray fl_t = doc.createNestedArray("fl_t");
+  fl_p.add(config.sensors.fl.pins[0]);
+  fl_l.add(config.sensors.fl.labels[0]);
+  fl_t.add(config.sensors.fl.topics[0]);
 
-  // --- NODES: ANALOG ---
-  doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
-  doc["5516_p"] = config.nodes.analog.light_resistor.pin;
-  doc["5516_type"] = config.nodes.analog.light_resistor.type;
-  doc["5516_l"] = config.nodes.analog.light_resistor.label;
-  doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
-  doc["5516_t"] = config.nodes.analog.light_resistor.topic;
+  // --- Light Resistor ---
+  doc["lr_en"] = config.sensors.lr.enabled;
+  JsonArray lr_p = doc.createNestedArray("lr_p");
+  JsonArray lr_l = doc.createNestedArray("lr_l");
+  JsonArray lr_t = doc.createNestedArray("lr_t");
+  lr_p.add(config.sensors.lr.pins[0]);
+  lr_l.add(config.sensors.lr.labels[0]);
+  lr_t.add(config.sensors.lr.topics[0]);
 
-  // --- NODES: ACTUATORS ---
-  doc["r_en"] = config.nodes.actuators.relays.enabled;
+
+  // doc["5516_p"] = config.nodes.analog.light_resistor.pin;
+  // doc["5516_l"] = config.nodes.analog.light_resistor.label;
+  // doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
+  // doc["5516_t"] = config.nodes.analog.light_resistor.topic;
+
+  // --- ACTUATORS ---
+  doc["r_en"] = config.sensors.relays.enabled;
   JsonArray r_p = doc.createNestedArray("r_p");
   JsonArray r_l = doc.createNestedArray("r_l");
   JsonArray r_c = doc.createNestedArray("r_c");
   JsonArray r_t = doc.createNestedArray("r_t");
   for (int i = 0; i < 4; i++) {
-    r_p.add(config.nodes.actuators.relays.pins[i]);
-    r_l.add(config.nodes.actuators.relays.labels[i]);
-    r_c.add(config.nodes.actuators.relays.ui_cards[i]);
-    r_t.add(config.nodes.actuators.relays.topics[i]);
+    r_p.add(config.sensors.relays.pins[i]);
+    r_l.add(config.sensors.relays.labels[i]);
+    r_t.add(config.sensors.relays.topics[i]);
   }
 
   if (serializeJson(doc, configFile) == 0) {
@@ -356,7 +349,7 @@ bool saveConfig() {
 
   configFile.close();
   // printConfigFile();
-  Serial.println("Settings saved. OK!");
+  Serial.println("Settings saved. OK.");
   return true;
 }
 
@@ -379,17 +372,103 @@ void setupAPI() {
     request->send_P(200, "text/html", index_html);
   });
   server.on("/api/wifi-status", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<256> doc; bool c = (WiFi.status() == WL_CONNECTED); doc["connected"] = c;
-    if(c) { doc["ssid"] = WiFi.SSID(); doc["ip"] = WiFi.localIP().toString(); doc["rssi"] = WiFi.RSSI(); }
-    String j; serializeJson(doc, j); 
+    StaticJsonDocument<256> doc;
+    bool c = (WiFi.status() == WL_CONNECTED);
+    doc["connected"] = c;
+    if(c) { 
+      doc["ssid"] = WiFi.SSID(); 
+      doc["ip"] = WiFi.localIP().toString(); 
+      doc["rssi"] = WiFi.RSSI(); 
+      }
+    String j;
+    serializeJson(doc, j);
     if (isCORS){
       AsyncWebServerResponse *response = request->beginResponse(200, "application/json", j);
       response->addHeader("Access-Control-Allow-Origin", "*");
-      response->addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-      response->addHeader("Access-Control-Allow-Headers", "Content-Type");
       request->send(response);
     } else request->send(200, "application/json", j);
   });
+
+  server.on("/api/update", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (isCORS){
+        AsyncWebServerResponse *response = request->beginResponse(200);
+        response->addHeader("Access-Control-Allow-Origin", "*");
+        response->addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+        response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+        request->send(response);
+    } else request->send(200);
+    if(request->hasParam("up-to-date", true)) 
+      if (request->getParam("up-to-date", true)->value() == "true"){
+        Serial.println("Start update...");
+        primitiveUpdateFlag = true; // Просто ставим метку
+      }
+  });
+
+  server.on("/api/get-remote-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
+    HTTPClient http;
+    secureClient.setInsecure(); // Для простоты проксирования
+    
+    if (http.begin(secureClient, MANIFEST_URL)) {
+        int httpCode = http.GET();
+        if (httpCode == 200) {
+            String payload = http.getString();
+            // Отправляем данные клиенту, добавляя CORS заголовок от самой ESP32
+            AsyncWebServerResponse *response = request->beginResponse(200, "application/json", payload);
+            response->addHeader("Access-Control-Allow-Origin", "*");
+            request->send(response);
+        } else {
+            request->send(500, "text/plain", "Failed to fetch remote manifest");
+        }
+        http.end();
+    }
+  });
+  server.on("/api/set-ws", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // В AsyncWebServer ответ обычно отправляется здесь, 
+    // но если нужно отправить результат обработки тела, 
+    // лучше делать это в конце onBody или через флаги.
+    request->send(200); 
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    
+    DynamicJsonDocument doc(512); // Увеличил до 512 для запаса
+    DeserializationError error = deserializeJson(doc, data, len);
+    
+    if (!error) {
+        char w_u[32] = "";
+        char w_u_n[32] = "";
+        char w_p[32] = "";
+        char w_p_n[32] = "";
+
+        // Извлекаем данные. Тут оператор '|' работает корректно
+        strlcpy(w_u,   doc["w_u"]   | "", 32);
+        strlcpy(w_u_n, doc["w_u_n"] | "", 32);
+        strlcpy(w_p,   doc["w_p"]   | "", 32);
+        strlcpy(w_p_n, doc["w_p_n"] | "", 32);
+
+        // 1. Сравниваем строки через strcmp (0 означает строки равны)
+        if (strcmp(config.services.web.user, w_u) == 0 && 
+            strcmp(config.services.web.pass, w_p) == 0) {
+            
+            // 2. Проверяем длину введенных строк через strlen
+            if (strlen(w_u_n) >= 4 && strlen(w_p_n) >= 4) {
+                
+                Serial.println("Updating credentials...");
+                
+                // 3. Копируем новые данные в конфиг
+                strlcpy(config.services.web.user, w_u_n, 32);
+                strlcpy(config.services.web.pass, w_p_n, 32);
+                saveConfig();
+            } else {
+                Serial.println("Error: New credentials too short");
+            }
+        } else {
+            Serial.println("Error: Old credentials mismatch");
+        }
+    } else {
+        Serial.print("Ошибка JSON: ");
+        Serial.println(error.c_str());
+    }
+  });
+  
   server.on("/api/ap-disable", HTTP_GET, [](AsyncWebServerRequest *request){
     if (WiFi.status() == WL_CONNECTED) apOffTime = millis() + 5000; 
     if (isCORS){
@@ -400,18 +479,27 @@ void setupAPI() {
       request->send(response);
     } else request->send(200);
   });
+
   server.on("/api/values", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<1024> doc; doc["in_t"] = String(random(220, 250)/10.0, 1); doc["in_h"] = String(random(40, 50));
-    doc["lux"] = String(random(100, 500)); 
-    doc["lux_out"] = String(random(0, 5000));
-    doc["pir"] = random(0, 10) > 8; 
-    doc["pres"] = random(0, 10) > 7;
-    doc["out_t"] = String(random(-50, 150)/10.0, 1); 
-    doc["out_h"] = String(random(60, 90));
-    doc["t1"] = String(random(400, 600)/10.0, 1); 
-    doc["t2"] = String(random(400, 600)/10.0, 1);
-    doc["door"] = random(0, 10) > 7; 
-    doc["flood"] = random(0, 10) > 8;
+    StaticJsonDocument<1024> doc; 
+    doc["bme_v0"] = String(random(-50, 150)/10.0, 1); 
+    doc["bme_v1"] = String(random(60, 90));
+    doc["bme_v2"] = String(random(99000, 102000));
+    doc["dht_v0"] = String(random(220, 250)/10.0, 1); 
+    doc["dht_v1"] = String(random(40, 50));
+    doc["ds_v0"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v1"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v2"] = String(random(400, 600)/10.0, 1); 
+    doc["ds_v3"] = String(random(400, 600)/10.0, 1); 
+
+
+    doc["tcrt_v0"] = String(random(100, 500)); 
+    doc["lr_v0"] = String(random(0, 100));
+     
+    doc["ld_v0"] = random(0, 10) > 7;
+    doc["dr_v0"] = random(0, 10) > 7; 
+    doc["fl_v0"] = random(0, 10) > 8;
+    doc["pir_v0"] = random(0, 10) > 8;
     String j; 
     serializeJson(doc, j); 
     if (isCORS){
@@ -431,9 +519,10 @@ void setupAPI() {
     doc["s_rbi"] = config.system.reboot_interval;
 
     // --- Services: WiFi & Web ---
-    doc["s_ssid"] = config.services.wifi.ssid;
-    //doc["s_pass"] = config.services.wifi.pass;
-    doc["s_ap"]   = config.services.wifi.ap_mode;
+    doc["w_en"] = config.services.wifi.enabled;
+    doc["w_ssid"] = config.services.wifi.ssid;
+    //doc["w_pass"] = config.services.wifi.pass;
+    doc["w_ap"]   = config.services.wifi.ap_mode;
     //doc["u_l"]    = config.services.web.user;
     //doc["u_p"]    = config.services.web.pass;
 
@@ -455,47 +544,97 @@ void setupAPI() {
 
     // --- Nodes: Climate ---
     // --- BME ---
-    doc["bme_en"] = config.nodes.climate.bme280.enabled;
+    doc["bme_en"] = config.sensors.bme.enabled;
+    JsonArray bme_p = doc.createNestedArray("bme_p");
+    bme_p.add(config.sensors.bme.pins[0]);
+    JsonArray bme_l = doc.createNestedArray("bme_l");
+    for(int i=0; i<3; i++) bme_l.add(config.sensors.bme.labels[i]);
+    JsonArray bme_t = doc.createNestedArray("bme_t");
+    for(int i=0; i<3; i++) bme_t.add(config.sensors.bme.topics[i]);
+
 
     // --- DHT ---
-    doc["dht_en"] = config.nodes.climate.dht22.enabled;
-    doc["dht_p"][0] = config.nodes.climate.dht22.pins[0];
-    
-    // --- DS18B20 ---
-    doc["ds_en"] = config.nodes.climate.ds18b20.enabled;
-    doc["ds_p"][0] = config.nodes.climate.ds18b20.pins[0];
-    JsonArray ds_m = doc.createNestedArray("ds_m");
-    for(int i=0; i<4; i++) ds_m.add(config.nodes.climate.ds18b20.macs[i]);
-    
-    // --- TCRT5000 ---
-    doc["tcrt_en"] = config.nodes.climate.tcrt5000.enabled;
+    doc["dht_en"] = config.sensors.dht.enabled;
+    JsonArray dht_p = doc.createNestedArray("dht_p");
+    dht_p.add(config.sensors.dht.pins[0]);
+    JsonArray dht_l = doc.createNestedArray("dht_l");
+    for(int i=0; i<2; i++) dht_l.add(config.sensors.dht.labels[i]);
+    JsonArray dht_t = doc.createNestedArray("dht_t");
+    for(int i=0; i<2; i++) dht_t.add(config.sensors.dht.topics[i]);
 
-    // --- Nodes: Binary ---
+    // --- DS18B20 ---
+    doc["ds_en"] = config.sensors.ds.enabled;
+    JsonArray ds_p = doc.createNestedArray("ds_p");
+    ds_p.add(config.sensors.ds.pins[0]);
+    JsonArray ds_m = doc.createNestedArray("ds_m");
+    for(int i=0; i<4; i++) ds_m.add(config.sensors.ds.macs[i]);
+    JsonArray ds_l = doc.createNestedArray("ds_l");
+    for(int i=0; i<4; i++) ds_l.add(config.sensors.ds.labels[i]);
+    JsonArray ds_t = doc.createNestedArray("ds_t");
+    for(int i=0; i<4; i++) ds_t.add(config.sensors.ds.topics[i]);
+
+    // --- TCRT5000 ---
+    doc["tcrt_en"] = config.sensors.tcrt.enabled;
+    JsonArray tcrt_p = doc.createNestedArray("tcrt_p");
+    tcrt_p.add(config.sensors.tcrt.pins[0]);
+    JsonArray tcrt_l = doc.createNestedArray("tcrt_l");
+    tcrt_l.add(config.sensors.tcrt.labels[0]);
+    JsonArray tcrt_t = doc.createNestedArray("tcrt_t");
+    tcrt_t.add(config.sensors.tcrt.topics[0]);
+
     // --- SR501 ---
-    doc["pir_en"]  = config.nodes.binary.pir.enabled;
-    doc["pir_p"]   = config.nodes.binary.pir.pin;
+    doc["pir_en"] = config.sensors.pir.enabled;
+    JsonArray pir_p = doc.createNestedArray("pir_p");
+    pir_p.add(config.sensors.pir.pins[0]);
+    JsonArray pir_l = doc.createNestedArray("pir_l");
+    pir_l.add(config.sensors.pir.labels[0]);
+    JsonArray pir_t = doc.createNestedArray("pir_t");
+    pir_t.add(config.sensors.pir.topics[0]);
 
     // --- LD2420 ---
-    doc["ld24_en"] = config.nodes.binary.ld2420.enabled;
-    doc["ld24_p"]  = config.nodes.binary.ld2420.pin;
-
+    doc["ld_en"] = config.sensors.ld.enabled;
+    JsonArray ld_p = doc.createNestedArray("ld_p");
+    ld_p.add(config.sensors.ld.pins[0]);
+    JsonArray ld_l = doc.createNestedArray("ld_l");
+    ld_l.add(config.sensors.ld.labels[0]);
+    JsonArray ld_t = doc.createNestedArray("ld_t");
+    ld_t.add(config.sensors.ld.topics[0]);
+  
     // --- Door ---
-    doc["door_en"] = config.nodes.binary.door.enabled;
-    doc["door_p"]  = config.nodes.binary.door.pin;
-
+    doc["dr_en"] = config.sensors.dr.enabled;
+    JsonArray dr_p = doc.createNestedArray("dr_p");
+    dr_p.add(config.sensors.dr.pins[0]);
+    JsonArray dr_l = doc.createNestedArray("dr_l");
+    dr_l.add(config.sensors.dr.labels[0]);
+    JsonArray dr_t = doc.createNestedArray("dr_t");
+    dr_t.add(config.sensors.dr.topics[0]);
+ 
     // --- Flood ---
-    doc["fl_en"]   = config.nodes.binary.flood.enabled;
-    doc["fl_p"]    = config.nodes.binary.flood.pin;
+    doc["fl_en"] = config.sensors.fl.enabled;
+    JsonArray fl_p = doc.createNestedArray("fl_p");
+    fl_p.add(config.sensors.fl.pins[0]);
+    JsonArray fl_l = doc.createNestedArray("fl_l");
+    fl_l.add(config.sensors.fl.labels[0]);
+    JsonArray fl_t = doc.createNestedArray("fl_t");
+    fl_t.add(config.sensors.fl.topics[0]);
 
-    // --- Nodes: Analog ---
     // --- Resistor 5516 ---
-    doc["5516_en"] = config.nodes.analog.light_resistor.enabled;
-    doc["5516_p"]  = config.nodes.analog.light_resistor.pin;
+    doc["lr_en"] = config.sensors.lr.enabled;
+    JsonArray lr_p = doc.createNestedArray("lr_p");
+    lr_p.add(config.sensors.lr.pins[0]);
+    JsonArray lr_l = doc.createNestedArray("lr_l");
+    lr_l.add(config.sensors.lr.labels[0]);
+    JsonArray lr_t = doc.createNestedArray("lr_t");
+    lr_t.add(config.sensors.lr.topics[0]);
 
     // --- Nodes: Actuators (Relays) ---
-    doc["r_en"] = config.nodes.actuators.relays.enabled;
+    doc["r_en"] = config.sensors.relays.enabled;
     JsonArray r_p = doc.createNestedArray("r_p");
-    for(int i=0; i<4; i++) r_p.add(config.nodes.actuators.relays.pins[i]);
+    for(int i=0; i<4; i++) r_p.add(config.sensors.relays.pins[i]);
+    JsonArray r_l = doc.createNestedArray("r_l");
+    for(int i=0; i<4; i++) r_l.add(config.sensors.relays.labels[i]);
+    JsonArray r_t = doc.createNestedArray("r_t");
+    for(int i=0; i<4; i++) r_t.add(config.sensors.relays.topics[i]);
 
     // Сериализация
     String responseData;
@@ -513,7 +652,8 @@ void setupAPI() {
     }
 });
   server.on("/api/get-relays", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<256> doc; JsonArray r=doc.createNestedArray("r");
+    StaticJsonDocument<256> doc; 
+    JsonArray r=doc.createNestedArray("r");
     for(int i=0; i<4; i++) r.add(relay_states[i]);
     String j; 
     serializeJson(doc, j); 
@@ -527,7 +667,8 @@ void setupAPI() {
   });
   server.on("/api/set-relay", HTTP_GET, [](AsyncWebServerRequest *request){
     if(request->hasParam("id") && request->hasParam("st")) {
-      int id = request->getParam("id")->value().toInt(); bool st = request->getParam("st")->value() == "true";
+      int id = request->getParam("id")->value().toInt();
+      bool st = request->getParam("st")->value() == "true";
       if(id >= 0 && id < 4) { relay_states[id] = st; saveRelays(); }
     }
     if (isCORS){
@@ -578,36 +719,36 @@ void setupAPI() {
   server.on("/api/set-sens", HTTP_POST, [](AsyncWebServerRequest *request){
     // 1. Климатические датчики
     if(request->hasParam("bme_en", true)) 
-        config.nodes.climate.bme280.enabled = (request->getParam("bme_en", true)->value() == "true");
+        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
     
     if(request->hasParam("dht_en", true)) 
-        config.nodes.climate.dht22.enabled = (request->getParam("dht_en", true)->value() == "true");
+        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
     
     if(request->hasParam("ds_en", true)) 
-        config.nodes.climate.ds18b20.enabled = (request->getParam("ds_en", true)->value() == "true");
+        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
     
     if(request->hasParam("tcrt_en", true)) 
-        config.nodes.climate.tcrt5000.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
 
     // 2. Бинарные датчики (Binary)
     if(request->hasParam("pir_en", true)) 
-        config.nodes.binary.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
     
     if(request->hasParam("ld_en", true)) 
-        config.nodes.binary.ld2420.enabled = (request->getParam("ld_en", true)->value() == "true");
+        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
     
-    if(request->hasParam("door_en", true)) 
-        config.nodes.binary.door.enabled = (request->getParam("door_en", true)->value() == "true");
+    if(request->hasParam("dr_en", true)) 
+        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
     
     if(request->hasParam("fl_en", true)) 
-        config.nodes.binary.flood.enabled = (request->getParam("fl_en", true)->value() == "true");
+        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
 
     // 3. Аналоговые датчики
-    if(request->hasParam("5516_en", true)) 
-        config.nodes.analog.light_resistor.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("lr_en", true)) 
+        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
     // 4. Актуаторы (Реле)
     if(request->hasParam("r_en", true)) 
-        config.nodes.actuators.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
     // Сохраняем обновленную структуру в LittleFS
     saveConfig(); 
 
@@ -623,6 +764,28 @@ void setupAPI() {
     }
   });
   server.on("/api/set-srv", HTTP_POST, [](AsyncWebServerRequest *request){
+    // Активация и деактивация сенсоров, переключатели
+    if(request->hasParam("bme_en", true)) 
+        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
+    if(request->hasParam("dht_en", true)) 
+        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
+    if(request->hasParam("ds_en", true)) 
+        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
+    if(request->hasParam("tcrt_en", true)) 
+        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+    if(request->hasParam("pir_en", true)) 
+        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    if(request->hasParam("ld_en", true)) 
+        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
+    if(request->hasParam("dr_en", true)) 
+        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
+    if(request->hasParam("fl_en", true)) 
+        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
+    if(request->hasParam("5516_en", true)) 
+        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("r_en", true)) 
+        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+
     // --- 1. Системные настройки (System) ---
     if(request->hasParam("s_dn", true)) 
         strlcpy(config.system.device_name, request->getParam("s_dn", true)->value().c_str(), 32);
@@ -630,12 +793,14 @@ void setupAPI() {
         config.system.reboot_interval = request->getParam("s_rbi", true)->value().toInt();
 
     // --- 2. WiFi и Web-авторизация (Services) ---
-    if(request->hasParam("s_ssid", true)) 
-        strlcpy(config.services.wifi.ssid, request->getParam("s_ssid", true)->value().c_str(), 32);
-    if(request->hasParam("s_pass", true)) 
-        strlcpy(config.services.wifi.pass, request->getParam("s_pass", true)->value().c_str(), 64);
-    if(request->hasParam("s_ap", true)) 
-        config.services.wifi.ap_mode = (request->getParam("s_ap", true)->value() == "true");
+    if(request->hasParam("w_en", true)) 
+        config.services.wifi.enabled = (request->getParam("w_en", true)->value() == "true");
+    if(request->hasParam("w_ssid", true)) 
+        strlcpy(config.services.wifi.ssid, request->getParam("w_ssid", true)->value().c_str(), 32);
+    if(request->hasParam("w_pass", true)) 
+        strlcpy(config.services.wifi.pass, request->getParam("w_pass", true)->value().c_str(), 64);
+    if(request->hasParam("w_ap", true)) 
+        config.services.wifi.ap_mode = (request->getParam("w_ap", true)->value() == "true");
     
     if(request->hasParam("u_l", true)) 
         strlcpy(config.services.web.user, request->getParam("u_l", true)->value().c_str(), 32);
@@ -746,10 +911,87 @@ void handleResetButton() {
     else { digitalWrite(LED_PIN, (wifiConnStatus == W_SUCCESS) ? HIGH : LOW); }
   }
 }
+//  Сравнение версий без динамической памяти
+int semver_compare(const char* v1, const char* v2) {
+    int a[3] = {0,0,0}, b[3] = {0,0,0};
+    if (v1[0] == 'v') v1++;
+    if (v2[0] == 'v') v2++;
+    sscanf(v1, "%d.%d.%d", &a[0], &a[1], &a[2]);
+    sscanf(v2, "%d.%d.%d", &b[0], &b[1], &b[2]);
+    for (int i = 0; i < 3; i++) {
+        if (a[i] > b[i]) return 1;
+        if (a[i] < b[i]) return -1;
+    }
+    return 0;
+}
 
+void handleUpdateOTA() {
+    if (!primitiveUpdateFlag) return;
+    Serial.println(F("--- OTA Check Started ---"));
+    //secureClient.setCACert(root_ca_pem);
+    secureClient.setInsecure(); // Игнорировать проверку сертификатов
+    
+    HTTPClient http;
+    //http.setReuse(true);
+    http.setTimeout(5000); // 5 секунд таймаут, чтобы отправить статус 200 запроса
+    
+    if (http.begin(secureClient, MANIFEST_URL)) {
+        Serial.println(F("Send request. HTTP.GET"));
+        http.addHeader(F("User-Agent"), F("ESP32-OTA-Client"));
+        int httpCode = http.GET();
+        Serial.print("httpCode");
+        Serial.println(httpCode);
+        
+        Serial.print("HTTP_CODE_OK: ");
+        Serial.println(HTTP_CODE_OK);
+        if (httpCode == HTTP_CODE_OK) {
+            Serial.println("Read JSON: ");
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, http.getStream());
+            
+            if (!error) {            
+                Serial.println("JSON - OK.");
+
+                const char* new_version = doc["version"] | "";
+                const char* firmware_url = doc["url"] | "";
+                const char* release_notes = doc["notes"] | "No notes provided";
+
+                if (semver_compare(new_version, CURRENT_VERSION) > 0) {
+                    Serial.println(F("\n--- UPDATE DETECTED ---"));
+                    Serial.printf("Version: %s\nNotes: %s\n", new_version, release_notes);
+                    Serial.println(F("Downloading firmware via HTTPS..."));
+
+                    httpUpdate.rebootOnUpdate(true);
+                    // Вызов обновления (без setHash для совместимости)
+                    t_httpUpdate_return ret = httpUpdate.update(secureClient, firmware_url);
+                    Serial.print("Return info after update: ");
+                    Serial.println(ret);
+                    if (ret == HTTP_UPDATE_FAILED) {
+                        Serial.printf("OTA Error (%d): %s\n", 
+                                      httpUpdate.getLastError(), 
+                                      httpUpdate.getLastErrorString().c_str());
+                    }
+                } else Serial.printf("System: Current version %s is up to date.\n", CURRENT_VERSION);
+            } else Serial.println("JSON - ERROR.");
+
+        }
+        http.end();
+    }
+}
+
+void handleDiagnostics() {
+    static unsigned long lastDiag = 0;
+    if (millis() - lastDiag > DIAGNOSTIC_INTERVAL) {
+        lastDiag = millis();
+        Serial.printf("System: OK | Version: %s | Free Heap: %u B | RSSI: %d\n", 
+                      CURRENT_VERSION, ESP.getFreeHeap(), WiFi.RSSI());
+    }
+}
 // --- Main ---
 void setup() {
   Serial.begin(115200);
+  Serial.println(F("\n[BOOT] Firmware Initialized"));
+  Serial.printf("Current OS: %s\n", CURRENT_VERSION);
   initFS();
   pinMode(LED_PIN, OUTPUT); pinMode(RESET_PIN, INPUT_PULLUP);
   loadConfig(); loadRelays();
@@ -777,8 +1019,11 @@ void setup() {
 }
 
 void loop() {
-  handleWiFiStatus();
-  handleAPTimeout();
-  handleLEDStatus();
-  handleResetButton();
+  handleWiFiStatus();       // Обработчик подкючения к сети WiFi
+  handleAPTimeout();        // Обработчик автоотключения точки доступа
+  handleLEDStatus();        // Обработчик мигания внутреннего светодиода
+  handleResetButton();      // Обработчик кнопки RESET
+  handleDiagnostics();      // Задача 3: Вывод статуса
+  handleUpdateOTA();        // Обновление OS
+
 }

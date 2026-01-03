@@ -93,7 +93,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 13px;
         font-weight: 600;
       }
-      .row input {
+      .row input,
+      textarea {
         flex: 1;
         padding: 8px;
         border: 1px solid #ddd;
@@ -571,16 +572,26 @@ const char index_html[] PROGMEM = R"rawliteral(
               >
                 Check update
               </button>
-              <div>
+
+              <div class="section" id="s_ver_info">
                 <div class="row">
                   <label>Current ver.</label><input id="s_cur_ver" readonly />
                 </div>
-
                 <div class="row">
                   <label>Server ver.</label><input id="s_serv_ver" readonly />
                 </div>
-                <div id="s_serv_notes"></div>
+                <div class="row">
+                  <label for="s_serv_notes">Description of changes:</label>
+                  <textarea
+                    id="s_serv_notes"
+                    name="story"
+                    rows="6"
+                    cols="70"
+                    readonly
+                  ></textarea>
+                </div>
               </div>
+
               <button class="btn" onclick="updateOS()">Update OS</button>
             </div>
           </div>
@@ -947,7 +958,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         function generateSensorSettings() {
           SENS_MAP.forEach((sensData) => {
-            console.log(sensData);
             let html = "";
             // Вывод GPIO
             for (let j = 0; j < sensData[1]; j++)
@@ -981,8 +991,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             return response.json();
           })
           .then((data) => {
-            // if (data.connected) {
-
+            // if (data.connected)
             const values = ["m_ip", "m_port", "m_bt", "m_i"];
 
             switchers.forEach((key) => {
@@ -997,19 +1006,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               if (el_card) el_card.textContent = data[key];
             });
 
-            // arrays.forEach((key) => {
-            //   if (data[key] && Array.isArray(data[key])) {
-            //     for (let i = 0; i < data[key].length; i++) {
-            //       const el = document.getElementById(`${key + i}`);
-            //       if (el) el.value = data[key][i];
-            //       const el_card = document.getElementById(`card_${key}${i}`);
-            //       if (el_card) el_card.textContent = data[key][i];
-            //     }
-            //   }
-            // });
-
             SENS_MAP.forEach((sensData) => {
-              //console.log(sensData[0]);
               for (let i = 0; i < sensData[1]; i++) {
                 // Sensors, Pin
                 const pin = document.getElementById(`${sensData[0]}_p${i}`);
@@ -1077,28 +1074,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       //   // fetch(`${BASE_URL}/api/get-remote-manifest`, {
       //   fetch(
       //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
-      //     {
-      //       method: "GET",
-      //       headers: { Accept: "application/json", mode: "cors" },
-      //     }
-      //   )
-      //     .then((response) => {
-      //       if (!response.ok)
-      //         throw new Error(`Ошибка HTTP: ${response.status}`);
-      //       return response.json();
-      //     })
-      //     .then((data) => {
-      //       console.log("Версия на сервере:", data.version);
-      //       console.log("Описание:", data.notes);
-      //       console.log("Ссылка на прошивку:", data.url);
-      //       document.getElementById("s_serv_ver").value = data.version;
-      //       document.getElementById("s_serv_notes").textContent = data.notes;
-      //       return data;
-      //     })
-      //     .catch((error) => {
-      //       console.error("Не удалось получить манифест:", error);
-      //     });
-      // }
+
       function checkUpdateOS() {
         const MANIFEST_URL =
           "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
@@ -1112,9 +1088,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             return response.json();
           })
           .then((data) => {
-            console.log("Версия на сервере:", data.version);
-            console.log("Описание:", data.notes);
-            console.log("Ссылка на прошивку:", data.url);
+            document.getElementById("s_ver_info").style.display = "block";
             document.getElementById("s_serv_ver").value = data.version;
             document.getElementById("s_serv_notes").textContent = data.notes;
             return data;
@@ -1132,6 +1106,31 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         );
       }
+      function applySet(type) {
+        var formData = new FormData();
+        var inputs = document.querySelectorAll('[id^="' + type + '_"]');
+        inputs.forEach(function (input) {
+          if (input.type === "checkbox")
+            formData.append(input.id, input.checked ? "true" : "false");
+          else formData.append(input.id, input.value);
+        });
+        fetch(BASE_URL + "/api/set-sens", {
+          method: "POST",
+          body: formData,
+        })
+          .then(function (response) {
+            if (response.ok) {
+              alert("Settings " + type.toUpperCase() + " saved.");
+            } else {
+              alert("Server ERROR: " + response.status);
+            }
+          })
+          .catch(function (error) {
+            console.error("Connection ERROR:", error);
+            alert("Connection with ESP32 ERROR!");
+          });
+      }
+
       function saveSens() {
         const f = new FormData();
         f.append("bme_en", document.getElementById("bme_en").checked);
@@ -1163,8 +1162,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         f.append("m_p", document.getElementById("m_p").value);
         f.append("m_bt", document.getElementById("m_t").value);
         f.append("m_i", document.getElementById("m_i").value);
-        // f.append("w_u", document.getElementById("w_u").value);
-        // f.append("w_p", document.getElementById("w_p").value);
         fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f }).then(() =>
           alert("Saved.")
         );
@@ -1172,7 +1169,6 @@ const char index_html[] PROGMEM = R"rawliteral(
     </script>
   </body>
 </html>
-
 
 )rawliteral";
 

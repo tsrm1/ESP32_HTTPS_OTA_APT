@@ -9,6 +9,7 @@ struct Config {
 
   struct Services {
     struct {
+      bool enabled = false;
       char ssid[32] = "";
       char pass[64] = "";
       bool ap_mode = true;
@@ -34,98 +35,68 @@ struct Config {
     } mqtt;
   } services;
 
-  struct Nodes {
-    struct Climate {
-      struct {
-        bool enabled = false; 
-        char type[4] ="I2C";
-        char labels[3][32]={"Temperature", "Humadity", "Peassure"};
-        char units[3][8]={"°C", "%", "Pa"};
-        char ui_cards[3][16]={"card-bme-t", "card-bme-h", "card-bme-p"};
-        char topics[3][16]={"/bme-t", "/bme-h", "/bme-p"};
-      } bme280;
-      struct {
-        bool enabled = false; 
-        int pins[1]={15};
-        char labels[2][32]={"Temperature", "Humadity"};
-        char units[2][8]={"°C", "%"};
-        char ui_cards[2][16]={"card-dht-t", "card-dht-h"};
-        char topics[3][16]={"/dht-t", "/dht-h"};
-      } dht22;
-      struct {
-        bool enabled = false; 
-        int pins[1]={4};
-        char macs[4][18]; // MAC-addres DS18B20
-        char labels[4][32]={"Radiator 1", "Radiator 2", "Radiator 3", "Radiator 4"};
-        char units[1][8]={"°C"};
-        char ui_cards[4][16]={"card-t1", "card-t2", "card-t3", "card-t4"};
-        char topics[4][16]={"/t1", "/t2", "/t3", "/t4"};
-      } ds18b20;
-      struct {
-        bool enabled = false; 
-        char type[4] ="I2C";
-        char labels[1][32]={"Light (TCRT)"};
-        char units[1][8]={"Lux"};
-        char ui_cards[1][16]={"card-tcrt"};
-        char topics[1][16]={"/lux"};
-      } tcrt5000;
-    } climate;
-
-    struct Binary {
-      struct {
-        bool enabled = false; 
-        int pin=35;
-        char type[8] ="motion";
-        char label[32]="Motion";
-        char ui_card[16]="card-pir";
-        char topic[16]="/motion";
-      } pir;
-      struct {
-        bool enabled = false; 
-        int pin=35;
-        char type[12] ="presence";
-        char label[32]="Presence";
-        char ui_card[16]="card-pres";
-        char topic[16]="/presence";
-      } ld2420;
-      struct {
-        bool enabled = false; 
-        int pin=36;
-        char type[8] ="contact";
-        char label[32]="Door";
-        char ui_card[16]="card-door";
-        char topic[16]="/door";
-      } door;
-      struct {
-        bool enabled = false; 
-        int pin=34;
-        char type[8] ="leak";
-        char label[32]="Leak";
-        char ui_card[16]="card-flood";
-        char topic[16]="/flood";
-      } flood;
-    } binary;
-
-    struct Analog {          
-      struct {
-        bool enabled = false; 
-        int pin=39;
-        char type[8] ="light";
-        char label[32]="Light (LDR)";
-        char ui_card[16]="card-lux-5516";
-        char topic[16]="/lux_raw";
-      } light_resistor;
-    } analog;
-    
-    struct Actuators {
-      struct {
-        bool enabled = false;
-        int pins[4] = {26, 27, 14, 13};
-        char labels[4][32]={"Rele 1", "Rele 2", "Rele 3", "Rele 4"};
-        char ui_cards[4][16]={"card-r0", "card-r1", "card-r2", "card-r3"};
-        char topics[4][16]={"/r0", "/r1", "/r2", "/r3"};
-      } relays;
-    } actuators;
-  } nodes;
+  struct Sensors {
+    struct {
+      bool enabled = false; 
+      int pins[1] = {21};
+      char labels[3][32]={"Temperature, °C", "Humidity, %", "Pressure, Pa"};
+      char topics[3][16]={"/bme-t", "/bme-h", "/bme-p"};
+    } bme;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {15};
+      char labels[2][32]={"Temperature, °C", "Humidity, %"};
+      char topics[3][16]={"/dht-t", "/dht-h"};
+    } dht;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {4};
+      char macs[4][18]; // MAC-addres DS18B20
+      char labels[4][32]={"Radiator 1, °C", "Radiator 2, °C", "Radiator 3, °C", "Radiator 4, °C"};
+      char topics[4][16]={"/t1", "/t2", "/t3", "/t4"};
+    } ds;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {21};
+      char labels[1][32]={"Light (TCRT), Lux"};
+      char topics[1][16]={"/lux"};
+    } tcrt;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {35};
+      char labels[1][32]={"Motion"};
+      char topics[1][16]={"/motion"};
+    } pir;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {35};
+      char labels[1][32]={"Presence"};
+      char topics[1][16]={"/presence"};
+    } ld;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {36};
+      char labels[1][32]={"Door"};
+      char topics[1][16]={"/door"};
+    } dr;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {34};
+      char labels[1][32]={"Leak"};
+      char topics[1][16]={"/flood"};
+    } fl;
+    struct {
+      bool enabled = false; 
+      int pins[1] = {39};
+      char labels[1][32]={"Light (LDR)"};
+      char topics[1][16]={"/lux_raw"};
+    } lr;
+    struct {
+      bool enabled = false;
+      int pins[4] = {26, 27, 14, 13};
+      char labels[4][32]={"Rele 1", "Rele 2", "Rele 3", "Rele 4"};
+      char topics[4][16]={"/r0", "/r1", "/r2", "/r3"};
+    } relays;
+  } sensors;
 };
 #endif

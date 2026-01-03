@@ -325,12 +325,6 @@ bool saveConfig() {
   lr_l.add(config.sensors.lr.labels[0]);
   lr_t.add(config.sensors.lr.topics[0]);
 
-
-  // doc["5516_p"] = config.nodes.analog.light_resistor.pin;
-  // doc["5516_l"] = config.nodes.analog.light_resistor.label;
-  // doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
-  // doc["5516_t"] = config.nodes.analog.light_resistor.topic;
-
   // --- ACTUATORS ---
   doc["r_en"] = config.sensors.relays.enabled;
   JsonArray r_p = doc.createNestedArray("r_p");
@@ -354,7 +348,38 @@ bool saveConfig() {
 }
 
 
+// Помощник для копирования строковых параметров (Labels и Topics)
+void updateCharParam(AsyncWebServerRequest *request, const String& key, char* target, size_t maxSize) {
+    if (request->hasParam(key, true)) {
+        String val = request->getParam(key, true)->value();
+        strlcpy(target, val.c_str(), maxSize);
+    }
+}
 
+// Обобщенная функция для обновления настроек любого датчика
+void processSensorParams(AsyncWebServerRequest *request, const String& prefix, 
+                         bool &enabled, int* pins, int pinCount, 
+                         char (*labels)[32], char (*topics)[16], int dataCount) {
+    
+    // 1. Обработка флага включения (_en)
+    if (request->hasParam(prefix + "_en", true)) {
+        enabled = (request->getParam(prefix + "_en", true)->value() == "true");
+    }
+
+    // 2. Обработка пинов (_p0, _p1...)
+    for (int i = 0; i < pinCount; i++) {
+        String pKey = prefix + "_p" + String(i);
+        if (request->hasParam(pKey, true)) {
+            pins[i] = request->getParam(pKey, true)->value().toInt();
+        }
+    }
+
+    // 3. Обработка меток (_l0, _l1...) и топиков (_t0, _t1...)
+    for (int i = 0; i < dataCount; i++) {
+        updateCharParam(request, prefix + "_l" + String(i), labels[i], 32);
+        updateCharParam(request, prefix + "_t" + String(i), topics[i], 16);
+    }
+}
 // --- LED Helpers ---
 void handleLEDStatus() {
   if (wifiConnStatus == W_CONNECTING) {
@@ -717,40 +742,109 @@ void setupAPI() {
     } else request->send(200);
   });
   server.on("/api/set-sens", HTTP_POST, [](AsyncWebServerRequest *request){
-    // 1. Климатические датчики
-    if(request->hasParam("bme_en", true)) 
-        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
-    
-    if(request->hasParam("dht_en", true)) 
-        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
-    
-    if(request->hasParam("ds_en", true)) 
-        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
-    
-    if(request->hasParam("tcrt_en", true)) 
-        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+    // Обработка BME280 (1 пин, 3 набора данных: T, H, P)
+    processSensorParams(request, "bme", 
+                        config.sensors.bme.enabled, 
+                        config.sensors.bme.pins, 1, 
+                        config.sensors.bme.labels,
+                        config.sensors.bme.topics, 3);
+    // Обработка DHT22 (1 пин, 2 набора данных: T, H, P)
+    processSensorParams(request, "dht", 
+                        config.sensors.dht.enabled, 
+                        config.sensors.dht.pins, 1, 
+                        config.sensors.dht.labels,
+                        config.sensors.dht.topics, 2);
+    // Обработка DS18B20 (1 пин, 4 датчика)
+    processSensorParams(request, "ds", 
+                        config.sensors.ds.enabled, 
+                        config.sensors.ds.pins, 1, 
+                        config.sensors.ds.labels, 
+                        config.sensors.ds.topics, 4);
 
-    // 2. Бинарные датчики (Binary)
-    if(request->hasParam("pir_en", true)) 
-        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    // Обработка TCRT5000 (1 пин, 1 датчика)
+    processSensorParams(request, "tcrt", 
+                        config.sensors.tcrt.enabled, 
+                        config.sensors.tcrt.pins, 1, 
+                        config.sensors.tcrt.labels, 
+                        config.sensors.tcrt.topics, 1);
+    // Обработка SR501 (1 пин, 1 датчика)
+    processSensorParams(request, "pir", 
+                        config.sensors.pir.enabled, 
+                        config.sensors.pir.pins, 1, 
+                        config.sensors.pir.labels, 
+                        config.sensors.pir.topics, 1);
+    // Обработка LR2420 (1 пин, 1 датчика)
+    processSensorParams(request, "ld", 
+                        config.sensors.ld.enabled, 
+                        config.sensors.ld.pins, 1, 
+                        config.sensors.ld.labels, 
+                        config.sensors.ld.topics, 1);
+    // Обработка Magnet Sensor, DOOR (1 пин, 1 датчика)
+    processSensorParams(request, "dr", 
+                        config.sensors.dr.enabled, 
+                        config.sensors.dr.pins, 1, 
+                        config.sensors.dr.labels, 
+                        config.sensors.dr.topics, 1);
+    // Обработка Flood Sensor, Flood (1 пин, 1 датчика)
+    processSensorParams(request, "fl", 
+                        config.sensors.fl.enabled, 
+                        config.sensors.fl.pins, 1, 
+                        config.sensors.fl.labels, 
+                        config.sensors.fl.topics, 1);
+    // Обработка LR 5516, Light Resistor (1 пин, 1 датчика)
+    processSensorParams(request, "lr", 
+                        config.sensors.lr.enabled, 
+                        config.sensors.lr.pins, 1, 
+                        config.sensors.lr.labels, 
+                        config.sensors.lr.topics, 1);
+    // Обработка RELEx4, Rele unit (4 пина, 4 реле)
+    processSensorParams(request, "r", 
+                        config.sensors.relays.enabled, 
+                        config.sensors.relays.pins, 4, 
+                        config.sensors.relays.labels, 
+                        config.sensors.relays.topics, 4);
     
-    if(request->hasParam("ld_en", true)) 
-        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
-    
-    if(request->hasParam("dr_en", true)) 
-        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
-    
-    if(request->hasParam("fl_en", true)) 
-        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
+    // Сохранение обновленной конфигурации в файл
+    if (saveConfig()) {
+        request->send(200, "application/json", "{\"status\":\"saved\"}");
+    } else {
+        request->send(500, "application/json", "{\"status\":\"error_saving\"}");
+    }
 
-    // 3. Аналоговые датчики
-    if(request->hasParam("lr_en", true)) 
-        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
-    // 4. Актуаторы (Реле)
-    if(request->hasParam("r_en", true)) 
-        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+    // // 1. Климатические датчики
+    // if(request->hasParam("bme_en", true)) 
+    //     config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
+    
+    // if(request->hasParam("dht_en", true)) 
+    //     config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
+    
+    // if(request->hasParam("ds_en", true)) 
+    //     config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
+    
+    // if(request->hasParam("tcrt_en", true)) 
+    //     config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+
+    // // 2. Бинарные датчики (Binary)
+    // if(request->hasParam("pir_en", true)) 
+    //     config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    
+    // if(request->hasParam("ld_en", true)) 
+    //     config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
+    
+    // if(request->hasParam("dr_en", true)) 
+    //     config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
+    
+    // if(request->hasParam("fl_en", true)) 
+    //     config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
+
+    // // 3. Аналоговые датчики
+    // if(request->hasParam("lr_en", true)) 
+    //     config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
+    // // 4. Актуаторы (Реле)
+    // if(request->hasParam("r_en", true)) 
+    //     config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
     // Сохраняем обновленную структуру в LittleFS
-    saveConfig(); 
+    //saveConfig(); 
 
     // Ответ сервера с учетом CORS
     if (isCORS){
@@ -781,8 +875,8 @@ void setupAPI() {
         config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
     if(request->hasParam("fl_en", true)) 
         config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
-    if(request->hasParam("5516_en", true)) 
-        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("lr_en", true)) 
+        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
     if(request->hasParam("r_en", true)) 
         config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
 
@@ -927,14 +1021,13 @@ int semver_compare(const char* v1, const char* v2) {
 
 void handleUpdateOTA() {
     if (!primitiveUpdateFlag) return;
-    //esp_task_wdt_delete(NULL); // Отключаем Watchdog для текущей задачи (loopTask)
     Serial.println(F("--- OTA Check Started ---"));
     //secureClient.setCACert(root_ca_pem);
     secureClient.setInsecure(); // Игнорировать проверку сертификатов
     
     HTTPClient http;
     //http.setReuse(true);
-    //http.setTimeout(10000); // 10 секунд таймаут
+    http.setTimeout(5000); // 5 секунд таймаут, чтобы отправить статус 200 запроса
     
     if (http.begin(secureClient, MANIFEST_URL)) {
         Serial.println(F("Send request. HTTP.GET"));
@@ -978,7 +1071,6 @@ void handleUpdateOTA() {
         }
         http.end();
     }
-    //esp_task_wdt_add(NULL); // Если обновление не пошло, возвращаем Watchdog обратно
 }
 
 void handleDiagnostics() {
@@ -1021,11 +1113,11 @@ void setup() {
 }
 
 void loop() {
-  handleWiFiStatus();
-  handleAPTimeout();
-  handleLEDStatus();
-  handleResetButton();
-  handleDiagnostics(); // Задача 3: Вывод статуса
-  handleUpdateOTA();
+  handleWiFiStatus();       // Обработчик подкючения к сети WiFi
+  handleAPTimeout();        // Обработчик автоотключения точки доступа
+  handleLEDStatus();        // Обработчик мигания внутреннего светодиода
+  handleResetButton();      // Обработчик кнопки RESET
+  handleDiagnostics();      // Задача 3: Вывод статуса
+  handleUpdateOTA();        // Обновление OS
 
 }
