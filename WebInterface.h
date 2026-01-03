@@ -248,7 +248,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       </div>
 
       <div id="tab-sens" class="page">
-        <div id="acc-cont">
+        <div class="acc-cont">
           <!-- Sensor BME280 -->
           <div class="acc-item">
             <div class="acc-header">
@@ -344,8 +344,8 @@ const char index_html[] PROGMEM = R"rawliteral(
               <label class="switch"
                 ><input
                   type="checkbox"
-                  id="door_en"
-                  onclick="setSwitcher('door_en')" /><span class="slider"></span
+                  id="dr_en"
+                  onclick="setSwitcher('dr_en')" /><span class="slider"></span
               ></label>
             </div>
             <div class="acc-panel" id="cont_dr"></div>
@@ -354,7 +354,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <!-- Sensor FLOOD -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)">FLOOD (Flooding)</span>
+              <span onclick="toggleAcc(this)">Flood sensor (Flooding)</span>
               <label class="switch"
                 ><input
                   type="checkbox"
@@ -368,11 +368,11 @@ const char index_html[] PROGMEM = R"rawliteral(
           <!-- Sensor Resistor 5516 -->
           <div class="acc-item">
             <div class="acc-header">
-              <span onclick="toggleAcc(this)">Resistor 5516 (Освещение)</span>
+              <span onclick="toggleAcc(this)">Resistor 5516 (Light)</span>
               <label class="switch"
                 ><input
                   type="checkbox"
-                  id="5516_en"
+                  id="lr_en"
                   onclick="setSwitcher('lr_en')" /><span class="slider"></span
               ></label>
             </div>
@@ -396,7 +396,7 @@ const char index_html[] PROGMEM = R"rawliteral(
       </div>
 
       <div id="tab-srv" class="page">
-        <div id="acc-cont">
+        <div class="acc-cont">
           <!-- Service WiFi -->
           <div class="acc-item">
             <div class="acc-header">
@@ -429,38 +429,38 @@ const char index_html[] PROGMEM = R"rawliteral(
                 </div>
               </div>
               <button class="btn" onclick="connWiFi()">Connect</button>
-            </div>
 
-            <div id="cur-wifi" class="section">
-              <h3>Connected to:</h3>
-              <div class="row">
-                <label>SSID</label
-                ><span id="cur_ssid" style="font-weight: bold"></span>
-              </div>
-              <div class="row">
-                <label>IP</label
-                ><span id="cur_ip" style="font-weight: bold"></span>
-              </div>
-              <div class="row">
-                <label>RSSI</label><span id="cur_rssi"></span>
-              </div>
-              <div class="row">
-                <label>Link</label
-                ><a
-                  id="cur_link"
-                  href=""
-                  target="_blank"
-                  style="
-                    color: #007bff;
-                    font-weight: bold;
-                    word-break: break-all;
-                  "
-                ></a>
+              <div id="cur-wifi" class="section">
+                <h3>Connected to:</h3>
+                <div class="row">
+                  <label>SSID</label
+                  ><span id="cur_ssid" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>IP</label
+                  ><span id="cur_ip" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>RSSI</label><span id="cur_rssi"></span>
+                </div>
+                <div class="row">
+                  <label>Link</label
+                  ><a
+                    id="cur_link"
+                    href=""
+                    target="_blank"
+                    style="
+                      color: #007bff;
+                      font-weight: bold;
+                      word-break: break-all;
+                    "
+                  ></a>
+                </div>
               </div>
             </div>
           </div>
         </div>
-        <div id="acc-cont">
+        <div class="acc-cont">
           <!-- Service Telegram -->
           <div class="acc-item">
             <div class="acc-header">
@@ -486,7 +486,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
           </div>
         </div>
-        <div id="acc-cont">
+        <div class="acc-cont">
           <!-- Service MQTT -->
           <div class="acc-item">
             <div class="acc-header">
@@ -523,15 +523,15 @@ const char index_html[] PROGMEM = R"rawliteral(
           </div>
         </div>
 
-        <div id="acc-cont">
+        <div class="acc-cont">
           <div class="acc-item">
             <div class="acc-header">
               <span onclick="toggleAcc(this)">Web Security</span>
             </div>
             <div class="acc-panel" id="cont_ws">
-              <div class="row"><label>Login</label><input id="w_u" /></div>
+              <div class="row"><label>Old login</label><input id="w_u" /></div>
               <div class="row">
-                <label>Password</label>
+                <label>Old password</label>
                 <div class="pass-wrapper">
                   <input id="w_p" type="password" /><span
                     class="toggle-eye"
@@ -540,9 +540,48 @@ const char index_html[] PROGMEM = R"rawliteral(
                   >
                 </div>
               </div>
-              <button class="btn" style="background: #28a745" onclick="setWS()">
-                Save
+              <div class="row">
+                <label>New login</label><input id="w_u_n" />
+              </div>
+              <div class="row">
+                <label>New password</label>
+                <div class="pass-wrapper">
+                  <input id="w_p_n" type="password" /><span
+                    class="toggle-eye"
+                    onclick="togglePass('w_p_n')"
+                    >👁️</span
+                  >
+                </div>
+              </div>
+              <button class="btn" onclick="setWS()">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="acc-cont">
+          <div class="acc-item">
+            <div class="acc-header">
+              <span onclick="toggleAcc(this)">Update OS</span>
+            </div>
+            <div class="acc-panel" id="cont_upd">
+              <button
+                class="btn btn-add"
+                style="margin-bottom: 12px"
+                onclick="checkUpdateOS()"
+              >
+                Check update
               </button>
+              <div>
+                <div class="row">
+                  <label>Current ver.</label><input id="s_cur_ver" readonly />
+                </div>
+
+                <div class="row">
+                  <label>Server ver.</label><input id="s_serv_ver" readonly />
+                </div>
+                <div id="s_serv_notes"></div>
+              </div>
+              <button class="btn" onclick="updateOS()">Update OS</button>
             </div>
           </div>
         </div>
@@ -768,6 +807,30 @@ const char index_html[] PROGMEM = R"rawliteral(
             }
           });
       }
+      // Отправка log/pass для изменения доступа к Homepage
+      function setWS() {
+        const msg = {};
+        msg["w_u"] = document.getElementById("w_u").value;
+        msg["w_p"] = document.getElementById("w_p").value;
+        msg["w_u_n"] = document.getElementById("w_u_n").value;
+        msg["w_p_n"] = document.getElementById("w_p_n").value;
+        fetch(`${BASE_URL}/api/set-ws`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          //mode: "cors",
+          body: JSON.stringify(msg),
+        })
+          .then(() => {
+            document.getElementById("w_u").value = "";
+            document.getElementById("w_p").value = "";
+            document.getElementById("w_u_n").value = "";
+            document.getElementById("w_p_n").value = "";
+            alert("Admin Login&Password was changed.");
+          })
+          .catch((error) => {
+            alert(error);
+          });
+      }
 
       //     document.getElementById("m_ip").value = c.m_ip;
       //     document.getElementById("m_port").value = c.m_port;
@@ -792,6 +855,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             d.r.forEach(
               (v, i) => (document.getElementById("r" + i).checked = v)
             );
+          })
+          .catch((error) => {
+            console.error(error);
           });
       }, 1000);
 
@@ -826,6 +892,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             updateStatus("card_ld_v0", v.ld_v, "ЕСТЬ", "НЕТ");
             updateStatus("card_dr_v0", v.dr_v, "ОТКР", "ЗАКР");
             updateStatus("card_fl_v0", v.fl_v, "ЕСТЬ", "НЕТ");
+          })
+          .catch((error) => {
+            console.error(error);
           });
       }, 5000);
 
@@ -857,15 +926,20 @@ const char index_html[] PROGMEM = R"rawliteral(
 
       document.addEventListener("DOMContentLoaded", () => {
         renderSensorsInfo();
+        showCurrentOS();
         getSettings();
       });
+
+      function showCurrentOS() {
+        document.getElementById(`s_cur_ver`).value = "0.2.7";
+      }
 
       function renderSensorsInfo() {
         function generateSensorCards() {
           let html = "";
           for (let i = 0; i < SENS_MAP.length - 1; i++)
             for (let j = 0; j < SENS_MAP[i][2]; j++)
-              html += `<div class="card" id="card_${SENS_MAP[i][0]}${j}"><h4><span id="card_${SENS_MAP[i][0]}_l${j}"></span><div id="card_${SENS_MAP[i][0]}_v${j}">--</div></div>`;
+              html += `<div class="card" id="card_${SENS_MAP[i][0]}${j}"><h4 id="card_${SENS_MAP[i][0]}_l${j}"></h4><div id="card_${SENS_MAP[i][0]}_v${j}">--</div></div>`;
           for (let i = 0; i < 4; i++)
             html += `<div class="card" id="card-r${i}"><h4 id="card_r_l${i}"></h4><label class="switch"><input type="checkbox" id="r${i}" onchange="setRelay(${i})" /><span class="slider"></span></label></div>`;
           document.getElementById(`cards-cont`).innerHTML = html;
@@ -976,7 +1050,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           });
       }
       function applySet(key) {
-        console.log(`ApplaySet(${key})`);
+        //console.log(`ApplaySet(${key})`);
         for (let i = 0; i < SENS_MAP.length; i++) {
           if (SENS_MAP[i][0] === key) {
             const msg = { pins: [], labels: [], topics: [] };
@@ -998,6 +1072,66 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         }
       }
+
+      // function checkUpdateOS() {
+      //   // fetch(`${BASE_URL}/api/get-remote-manifest`, {
+      //   fetch(
+      //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
+      //     {
+      //       method: "GET",
+      //       headers: { Accept: "application/json", mode: "cors" },
+      //     }
+      //   )
+      //     .then((response) => {
+      //       if (!response.ok)
+      //         throw new Error(`Ошибка HTTP: ${response.status}`);
+      //       return response.json();
+      //     })
+      //     .then((data) => {
+      //       console.log("Версия на сервере:", data.version);
+      //       console.log("Описание:", data.notes);
+      //       console.log("Ссылка на прошивку:", data.url);
+      //       document.getElementById("s_serv_ver").value = data.version;
+      //       document.getElementById("s_serv_notes").textContent = data.notes;
+      //       return data;
+      //     })
+      //     .catch((error) => {
+      //       console.error("Не удалось получить манифест:", error);
+      //     });
+      // }
+      function checkUpdateOS() {
+        const MANIFEST_URL =
+          "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        fetch(MANIFEST_URL, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        })
+          .then((response) => {
+            if (!response.ok)
+              throw new Error(`Ошибка HTTP: ${response.status}`);
+            return response.json();
+          })
+          .then((data) => {
+            console.log("Версия на сервере:", data.version);
+            console.log("Описание:", data.notes);
+            console.log("Ссылка на прошивку:", data.url);
+            document.getElementById("s_serv_ver").value = data.version;
+            document.getElementById("s_serv_notes").textContent = data.notes;
+            return data;
+          })
+          .catch((error) => {
+            console.error("Не удалось получить манифест:", error);
+          });
+      }
+      function updateOS() {
+        const f = new FormData();
+        f.append("up-to-date", true);
+        fetch(`${BASE_URL}/api/update`, { method: "POST", body: f }).then(
+          (response) => {
+            alert("Checked for new version and update.");
+          }
+        );
+      }
       function saveSens() {
         const f = new FormData();
         f.append("bme_en", document.getElementById("bme_en").checked);
@@ -1006,9 +1140,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         f.append("tcrt_en", document.getElementById("tcrt_en").checked);
         f.append("pir_en", document.getElementById("pir_en").checked);
         f.append("ld_en", document.getElementById("ld_en").checked);
-        f.append("door_en", document.getElementById("door_en").checked);
+        f.append("dr_en", document.getElementById("dr_en").checked);
         f.append("fl_en", document.getElementById("fl_en").checked);
-        f.append("5516_en", document.getElementById("5516_en").checked);
+        f.append("lr_en", document.getElementById("lr_en").checked);
         f.append("r_en", document.getElementById("r_en").checked);
         fetch(`${BASE_URL}/api/set-sens`, { method: "POST", body: f }).then(
           () => alert("Saved.")
@@ -1018,7 +1152,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         const f = new FormData();
         f.append("w_en", document.getElementById("w_en").checked);
         f.append("tg_en", document.getElementById("tg_en").checked);
-        f.append("tg_t", document.getElementById("tg_token").value);
+        f.append("tg_t", document.getElementById("tg_t").value);
         f.append("tg_ids", activeIds);
         for (let i = 0; i < activeIds; i++)
           f.append("id" + i, document.getElementById("id" + i).value);
@@ -1038,6 +1172,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </script>
   </body>
 </html>
+
 
 )rawliteral";
 

@@ -16,23 +16,41 @@ Config config;// инициализация структуры настроек
 
 // --- Константы ---
 static const char* const CURRENT_VERSION = "0.2.7";
+static const char* const MANIFEST_URL  = "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+bool primitiveUpdateFlag = false;
+
 const char* AP_SSID = "ESP32_Config_Node";
 const int RESET_PIN = 13; 
 const int LED_PIN = 2;
+static const unsigned long DIAGNOSTIC_INTERVAL = 10000;         // 10 секунд
 
 enum ConnStatus { W_IDLE, W_CONNECTING, W_SUCCESS, W_FAIL };
 ConnStatus wifiConnStatus = W_IDLE;
 unsigned long apOffTime = 0;
 unsigned long lastLedToggle = 0;
 
+// --- Сертификат безопасности (ISRG Root X1 для Netlify) ---
+// Позволяет ESP32 убедиться, что она общается именно с вашим сервером
+static const char* root_ca_pem PROGMEM = 
+"-----BEGIN CERTIFICATE-----\n"
+"MIIFazCCA1OgAwIBAgIRAMS9LwWIC9SdcptqXvYVCnMwDQYJKoZIhvcNAQELBQAw\n"
+"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
+"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n"
+"WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n"
+"ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n"
+"MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n"
+"h77ct984kIAbq6t21fTxCteNL89No684u9InYsuW0UmK6RRXmYn06lIod72+YV88\n"
+"39/72FpExD4U87G00S27xWj7+Wz64EobfR9V4I1QzP61mXqD1L/l4Y/22OQjYJtL\n"
+"WJ23p4/S4+F+Jv6A3v2qN76v9+I7m7pW9t5518DNDV+P+uEPrk+f9N+O0hR8R9Wv\n"
+"vvAd4LaxmX8Rvh9XvIDHAA3HnYARC45S9Y1S6NvdY8JshCNoJvEtyTdbY4C5iS5B\n"
+"dB76Y7101uXy49qYmBTAp/L6M0lBndy7D6I94E0KxSNDKz6/V3/B4H8/8D64Y+Wk\n"
+"5+lOteV6V7Y/H9yN+fP9L0Tf677vA494f6n7H3X49z+0O6v0K394f7vA494f6n7H\n"
+"-----END CERTIFICATE-----\n";
+
+WiFiClientSecure secureClient;
+
 AsyncWebServer server(80);
 DNSServer dnsServer;
-
-// // Добавлена структура для хранения данных DS18B20
-// struct DSConfig {
-//   char mac[17];
-//   int userIndex;
-// };
 
 void initFS(){
   if (!LittleFS.begin(true)) { Serial.println("LittleFS Mount Failed"); return; } // If filesystem - LittleFS
@@ -354,17 +372,103 @@ void setupAPI() {
     request->send_P(200, "text/html", index_html);
   });
   server.on("/api/wifi-status", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<256> doc; bool c = (WiFi.status() == WL_CONNECTED); doc["connected"] = c;
-    if(c) { doc["ssid"] = WiFi.SSID(); doc["ip"] = WiFi.localIP().toString(); doc["rssi"] = WiFi.RSSI(); }
-    String j; serializeJson(doc, j); 
+    StaticJsonDocument<256> doc;
+    bool c = (WiFi.status() == WL_CONNECTED);
+    doc["connected"] = c;
+    if(c) { 
+      doc["ssid"] = WiFi.SSID(); 
+      doc["ip"] = WiFi.localIP().toString(); 
+      doc["rssi"] = WiFi.RSSI(); 
+      }
+    String j;
+    serializeJson(doc, j);
     if (isCORS){
       AsyncWebServerResponse *response = request->beginResponse(200, "application/json", j);
       response->addHeader("Access-Control-Allow-Origin", "*");
-      response->addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-      response->addHeader("Access-Control-Allow-Headers", "Content-Type");
       request->send(response);
     } else request->send(200, "application/json", j);
   });
+
+  server.on("/api/update", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (isCORS){
+        AsyncWebServerResponse *response = request->beginResponse(200);
+        response->addHeader("Access-Control-Allow-Origin", "*");
+        response->addHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+        response->addHeader("Access-Control-Allow-Headers", "Content-Type");
+        request->send(response);
+    } else request->send(200);
+    if(request->hasParam("up-to-date", true)) 
+      if (request->getParam("up-to-date", true)->value() == "true"){
+        Serial.println("Start update...");
+        primitiveUpdateFlag = true; // Просто ставим метку
+      }
+  });
+
+  server.on("/api/get-remote-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
+    HTTPClient http;
+    secureClient.setInsecure(); // Для простоты проксирования
+    
+    if (http.begin(secureClient, MANIFEST_URL)) {
+        int httpCode = http.GET();
+        if (httpCode == 200) {
+            String payload = http.getString();
+            // Отправляем данные клиенту, добавляя CORS заголовок от самой ESP32
+            AsyncWebServerResponse *response = request->beginResponse(200, "application/json", payload);
+            response->addHeader("Access-Control-Allow-Origin", "*");
+            request->send(response);
+        } else {
+            request->send(500, "text/plain", "Failed to fetch remote manifest");
+        }
+        http.end();
+    }
+  });
+  server.on("/api/set-ws", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // В AsyncWebServer ответ обычно отправляется здесь, 
+    // но если нужно отправить результат обработки тела, 
+    // лучше делать это в конце onBody или через флаги.
+    request->send(200); 
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    
+    DynamicJsonDocument doc(512); // Увеличил до 512 для запаса
+    DeserializationError error = deserializeJson(doc, data, len);
+    
+    if (!error) {
+        char w_u[32] = "";
+        char w_u_n[32] = "";
+        char w_p[32] = "";
+        char w_p_n[32] = "";
+
+        // Извлекаем данные. Тут оператор '|' работает корректно
+        strlcpy(w_u,   doc["w_u"]   | "", 32);
+        strlcpy(w_u_n, doc["w_u_n"] | "", 32);
+        strlcpy(w_p,   doc["w_p"]   | "", 32);
+        strlcpy(w_p_n, doc["w_p_n"] | "", 32);
+
+        // 1. Сравниваем строки через strcmp (0 означает строки равны)
+        if (strcmp(config.services.web.user, w_u) == 0 && 
+            strcmp(config.services.web.pass, w_p) == 0) {
+            
+            // 2. Проверяем длину введенных строк через strlen
+            if (strlen(w_u_n) >= 4 && strlen(w_p_n) >= 4) {
+                
+                Serial.println("Updating credentials...");
+                
+                // 3. Копируем новые данные в конфиг
+                strlcpy(config.services.web.user, w_u_n, 32);
+                strlcpy(config.services.web.pass, w_p_n, 32);
+                saveConfig();
+            } else {
+                Serial.println("Error: New credentials too short");
+            }
+        } else {
+            Serial.println("Error: Old credentials mismatch");
+        }
+    } else {
+        Serial.print("Ошибка JSON: ");
+        Serial.println(error.c_str());
+    }
+  });
+  
   server.on("/api/ap-disable", HTTP_GET, [](AsyncWebServerRequest *request){
     if (WiFi.status() == WL_CONNECTED) apOffTime = millis() + 5000; 
     if (isCORS){
@@ -375,6 +479,7 @@ void setupAPI() {
       request->send(response);
     } else request->send(200);
   });
+
   server.on("/api/values", HTTP_GET, [](AsyncWebServerRequest *request){
     StaticJsonDocument<1024> doc; 
     doc["bme_v0"] = String(random(-50, 150)/10.0, 1); 
@@ -547,7 +652,8 @@ void setupAPI() {
     }
 });
   server.on("/api/get-relays", HTTP_GET, [](AsyncWebServerRequest *request){
-    StaticJsonDocument<256> doc; JsonArray r=doc.createNestedArray("r");
+    StaticJsonDocument<256> doc; 
+    JsonArray r=doc.createNestedArray("r");
     for(int i=0; i<4; i++) r.add(relay_states[i]);
     String j; 
     serializeJson(doc, j); 
@@ -561,7 +667,8 @@ void setupAPI() {
   });
   server.on("/api/set-relay", HTTP_GET, [](AsyncWebServerRequest *request){
     if(request->hasParam("id") && request->hasParam("st")) {
-      int id = request->getParam("id")->value().toInt(); bool st = request->getParam("st")->value() == "true";
+      int id = request->getParam("id")->value().toInt();
+      bool st = request->getParam("st")->value() == "true";
       if(id >= 0 && id < 4) { relay_states[id] = st; saveRelays(); }
     }
     if (isCORS){
@@ -638,7 +745,7 @@ void setupAPI() {
 
     // 3. Аналоговые датчики
     if(request->hasParam("lr_en", true)) 
-        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
+        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
     // 4. Актуаторы (Реле)
     if(request->hasParam("r_en", true)) 
         config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
@@ -804,10 +911,89 @@ void handleResetButton() {
     else { digitalWrite(LED_PIN, (wifiConnStatus == W_SUCCESS) ? HIGH : LOW); }
   }
 }
+//  Сравнение версий без динамической памяти
+int semver_compare(const char* v1, const char* v2) {
+    int a[3] = {0,0,0}, b[3] = {0,0,0};
+    if (v1[0] == 'v') v1++;
+    if (v2[0] == 'v') v2++;
+    sscanf(v1, "%d.%d.%d", &a[0], &a[1], &a[2]);
+    sscanf(v2, "%d.%d.%d", &b[0], &b[1], &b[2]);
+    for (int i = 0; i < 3; i++) {
+        if (a[i] > b[i]) return 1;
+        if (a[i] < b[i]) return -1;
+    }
+    return 0;
+}
 
+void handleUpdateOTA() {
+    if (!primitiveUpdateFlag) return;
+    //esp_task_wdt_delete(NULL); // Отключаем Watchdog для текущей задачи (loopTask)
+    Serial.println(F("--- OTA Check Started ---"));
+    //secureClient.setCACert(root_ca_pem);
+    secureClient.setInsecure(); // Игнорировать проверку сертификатов
+    
+    HTTPClient http;
+    //http.setReuse(true);
+    //http.setTimeout(10000); // 10 секунд таймаут
+    
+    if (http.begin(secureClient, MANIFEST_URL)) {
+        Serial.println(F("Send request. HTTP.GET"));
+        http.addHeader(F("User-Agent"), F("ESP32-OTA-Client"));
+        int httpCode = http.GET();
+        Serial.print("httpCode");
+        Serial.println(httpCode);
+        
+        Serial.print("HTTP_CODE_OK: ");
+        Serial.println(HTTP_CODE_OK);
+        if (httpCode == HTTP_CODE_OK) {
+            Serial.println("Read JSON: ");
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, http.getStream());
+            
+            if (!error) {            
+                Serial.println("JSON - OK.");
+
+                const char* new_version = doc["version"] | "";
+                const char* firmware_url = doc["url"] | "";
+                const char* release_notes = doc["notes"] | "No notes provided";
+
+                if (semver_compare(new_version, CURRENT_VERSION) > 0) {
+                    Serial.println(F("\n--- UPDATE DETECTED ---"));
+                    Serial.printf("Version: %s\nNotes: %s\n", new_version, release_notes);
+                    Serial.println(F("Downloading firmware via HTTPS..."));
+
+                    httpUpdate.rebootOnUpdate(true);
+                    // Вызов обновления (без setHash для совместимости)
+                    t_httpUpdate_return ret = httpUpdate.update(secureClient, firmware_url);
+                    Serial.print("Return info after update: ");
+                    Serial.println(ret);
+                    if (ret == HTTP_UPDATE_FAILED) {
+                        Serial.printf("OTA Error (%d): %s\n", 
+                                      httpUpdate.getLastError(), 
+                                      httpUpdate.getLastErrorString().c_str());
+                    }
+                } else Serial.printf("System: Current version %s is up to date.\n", CURRENT_VERSION);
+            } else Serial.println("JSON - ERROR.");
+
+        }
+        http.end();
+    }
+    //esp_task_wdt_add(NULL); // Если обновление не пошло, возвращаем Watchdog обратно
+}
+
+void handleDiagnostics() {
+    static unsigned long lastDiag = 0;
+    if (millis() - lastDiag > DIAGNOSTIC_INTERVAL) {
+        lastDiag = millis();
+        Serial.printf("System: OK | Version: %s | Free Heap: %u B | RSSI: %d\n", 
+                      CURRENT_VERSION, ESP.getFreeHeap(), WiFi.RSSI());
+    }
+}
 // --- Main ---
 void setup() {
   Serial.begin(115200);
+  Serial.println(F("\n[BOOT] Firmware Initialized"));
+  Serial.printf("Current OS: %s\n", CURRENT_VERSION);
   initFS();
   pinMode(LED_PIN, OUTPUT); pinMode(RESET_PIN, INPUT_PULLUP);
   loadConfig(); loadRelays();
@@ -839,4 +1025,7 @@ void loop() {
   handleAPTimeout();
   handleLEDStatus();
   handleResetButton();
+  handleDiagnostics(); // Задача 3: Вывод статуса
+  handleUpdateOTA();
+
 }
