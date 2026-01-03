@@ -429,7 +429,7 @@ void setupAPI() {
       }
   });
 
-  server.on("/api/get-remote-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/api/get-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
     HTTPClient http;
     secureClient.setInsecure(); // Для простоты проксирования
     

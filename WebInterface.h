@@ -1071,13 +1071,15 @@ const char index_html[] PROGMEM = R"rawliteral(
       }
 
       // function checkUpdateOS() {
-      //   // fetch(`${BASE_URL}/api/get-remote-manifest`, {
+      //   // fetch(`${BASE_URL}/api/get-manifest`, {
       //   fetch(
       //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
 
       function checkUpdateOS() {
-        const MANIFEST_URL =
-          "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        // const MANIFEST_URL =
+        //   "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        const MANIFEST_URL = `${BASE_URL}/api/get-manifest`;
+
         fetch(MANIFEST_URL, {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -1169,6 +1171,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     </script>
   </body>
 </html>
+
 
 )rawliteral";
 
