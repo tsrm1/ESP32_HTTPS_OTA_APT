@@ -428,7 +428,7 @@
               <button class="btn" onclick="connWiFi()">Connect</button>
 
               <div id="cur-wifi" class="section">
-                <h3>Connected to:</h3>
+                <h3>Connected to WiFi:</h3>
                 <div class="row">
                   <label>SSID</label
                   ><span id="cur_ssid" style="font-weight: bold"></span>
@@ -496,6 +496,7 @@
               ></label>
             </div>
             <div class="acc-panel" id="cont_m">
+              <div class="row"><label>Device ID</label><input id="m_id" /></div>
               <div class="row"><label>Broker IP</label><input id="m_ip" /></div>
               <div class="row">
                 <label>Port</label><input id="m_port" type="number" />
@@ -516,6 +517,34 @@
                 <label>Interval (s)</label><input id="m_i" type="number" />
               </div>
               <button class="btn" onclick="connMQTT()">Connect</button>
+
+              <div id="cur-mqtt" class="section">
+                <h3>Connected to MQTT:</h3>
+                <div class="row">
+                  <label>ID</label
+                  ><span id="cur_m_id" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>HOST</label
+                  ><span id="cur_m_ip" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>Port</label
+                  ><span id="cur_m_port" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>Login</label><span id="cur_m_u"></span>
+                </div>
+                <div class="row">
+                  <label>Pass</label><span id="cur_m_p"></span>
+                </div>
+                <div class="row">
+                  <label>Base topic</label><span id="cur_m_bt"></span>
+                </div>
+                <div class="row">
+                  <label>Interval</label><span id="cur_m_i"></span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -711,6 +740,7 @@
         e.currentTarget.classList.add("active");
         getSettings(); // запрос на обновление настроек
         pollWifiStatus(); // запрос состояния подключения к локальной сети WiFi
+        pollMQTTStatus(); // запрос состояния подключения к MQTT
       }
 
       // Скрытие/отображение содержимого закладок
@@ -809,6 +839,32 @@
               link.href = url;
               link.innerText = url;
               fetch(`${BASE_URL}/api/ap-disable`);
+            } else {
+              setTimeout(pollWifiStatus, 3000);
+            }
+          });
+      }
+      // Получение состояния подключения к локальной сети WiFi
+      function pollMQTTStatus() {
+        fetch(`${BASE_URL}/api/mqtt-status`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.connected) {
+              document.getElementById("cur-mqtt").style.display = "block";
+              document.getElementById("cur_m_id").innerText = d.m_id;
+              document.getElementById("cur_m_ip").innerText = d.m_ip;
+              document.getElementById("cur_m_port").innerText = d.m_port;
+              document.getElementById("cur_m_u").innerText = d.m_u;
+              document.getElementById("cur_m_p").innerText = d.m_p;
+              document.getElementById("cur_m_bt").innerText = d.m_bt;
+              document.getElementById("cur_m_i").innerText = d.m_i;
+              // document.getElementById("cur_ip").innerText = d.ip;
+              // document.getElementById("cur_rssi").innerText = d.rssi + " dBm";
+              // const url = "http://" + d.ip + "/";
+              // const link = document.getElementById("cur_link");
+              // link.href = url;
+              // link.innerText = url;
+              // fetch(`${BASE_URL}/api/ap-disable`);
             } else {
               setTimeout(pollWifiStatus, 3000);
             }
@@ -988,18 +1044,24 @@
           })
           .then((data) => {
             // if (data.connected)
-            const values = ["m_ip", "m_port", "m_bt", "m_i"];
+
+            const values = ["m_id", "m_ip", "m_port", "m_bt", "m_i"];
+            values.forEach((key) => {
+              const el = document.getElementById(key);
+              if (el) el.value = data[key];
+              // const el_card = document.getElementById(`card_${key}`);
+              // if (el_card) el_card.textContent = data[key];
+            });
+
+            // document.getElementById("m_id").value = data[m_id];
+            // document.getElementById("m_ip").value = data[m_ip];
+            // document.getElementById("m_port").value = data[m_port];
+            // document.getElementById("m_bt").value = data[m_t];
+            // document.getElementById("m_i").value = data[m_i];
 
             switchers.forEach((key) => {
               const element = document.getElementById(key);
               if (element) element.checked = data[key];
-            });
-
-            values.forEach((key) => {
-              const el = document.getElementById(key);
-              if (el) el.value = data[key];
-              const el_card = document.getElementById(`card_${key}`);
-              if (el_card) el_card.textContent = data[key];
             });
 
             SENS_MAP.forEach((sensData) => {
@@ -1027,11 +1089,6 @@
             //   const element = document.getElementById(`r_p${i}`);
             //   if (element) element.value = data.r_p[i];
             // }
-
-            // document.getElementById("m_ip").value = data[m_ip];
-            // document.getElementById("m_port").value = data[m_port];
-            // document.getElementById("m_t").value = data[m_t];
-            // document.getElementById("m_i").value = data[m_i];
 
             // for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
             // if (activeIds === 0) addUserId("");
@@ -1065,12 +1122,34 @@
           }
         }
       }
-
-      // function checkUpdateOS() {
-      //   // fetch(`${BASE_URL}/api/get-manifest`, {
-      //   fetch(
-      //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
-
+      function connMQTT() {
+        const msg = {};
+        msg["m_id"] = document.getElementById("m_id").value;
+        msg["m_ip"] = document.getElementById("m_ip").value;
+        msg["m_port"] = parseInt(document.getElementById("m_port").value);
+        msg["m_u"] = document.getElementById("m_u").value;
+        msg["m_p"] = document.getElementById("m_p").value;
+        msg["m_bt"] = document.getElementById("m_bt").value;
+        msg["m_i"] = parseInt(document.getElementById("m_i").value);
+        fetch(`${BASE_URL}/api/set-mqtt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          //mode: "cors",
+          body: JSON.stringify(msg),
+        })
+          .then(() => {
+            document.getElementById("m_ip").value = "";
+            document.getElementById("m_port").value = "";
+            document.getElementById("m_u").value = "";
+            document.getElementById("m_p").value = "";
+            document.getElementById("m_bt").value = "";
+            document.getElementById("m_i").value = "";
+            alert("MQTT credentials was changed.");
+          })
+          .catch((error) => {
+            alert(error);
+          });
+      }
       function checkUpdateOS() {
         // const MANIFEST_URL =
         //   "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";

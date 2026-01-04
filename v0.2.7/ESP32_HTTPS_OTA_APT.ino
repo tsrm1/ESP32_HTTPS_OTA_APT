@@ -8,11 +8,18 @@
 #include <DNSServer.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <PubSubClient.h>
+#include <time.h>
+// #include <TZ.h>
+
+WiFiClientSecure mqttSecureClient;
+PubSubClient mqttClient(mqttSecureClient);
 
 
-#include "WebInterface.h" // WEB-Interface for Homepage
-#include "SensorsConfig.h" // структура настроек датчиков и служб
-Config config;// инициализация структуры настроек
+#include "WebInterface.h"   // WEB-Interface for Homepage
+#include "Sensors.h"        // структуры: настройки датчиков и служб, значения датчиков
+Config config;              // инициализация структуры настроек датчиков
+SensorData data;            // инициализация структуры значений датчиков
 
 // --- Константы ---
 static const char* const CURRENT_VERSION = "0.2.7";
@@ -33,18 +40,73 @@ unsigned long lastLedToggle = 0;
 // Позволяет ESP32 убедиться, что она общается именно с вашим сервером
 static const char* root_ca_pem PROGMEM = 
 "-----BEGIN CERTIFICATE-----\n"
-"MIIFazCCA1OgAwIBAgIRAMS9LwWIC9SdcptqXvYVCnMwDQYJKoZIhvcNAQELBQAw\n"
-"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
-"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n"
-"WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n"
-"ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n"
-"MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n"
-"h77ct984kIAbq6t21fTxCteNL89No684u9InYsuW0UmK6RRXmYn06lIod72+YV88\n"
-"39/72FpExD4U87G00S27xWj7+Wz64EobfR9V4I1QzP61mXqD1L/l4Y/22OQjYJtL\n"
-"WJ23p4/S4+F+Jv6A3v2qN76v9+I7m7pW9t5518DNDV+P+uEPrk+f9N+O0hR8R9Wv\n"
-"vvAd4LaxmX8Rvh9XvIDHAA3HnYARC45S9Y1S6NvdY8JshCNoJvEtyTdbY4C5iS5B\n"
-"dB76Y7101uXy49qYmBTAp/L6M0lBndy7D6I94E0KxSNDKz6/V3/B4H8/8D64Y+Wk\n"
-"5+lOteV6V7Y/H9yN+fP9L0Tf677vA494f6n7H3X49z+0O6v0K394f7vA494f6n7H\n"
+"MIIFazCCA1OgAwIBAgIRAIIqZz7SZI5RQ4cUCByyDLDUMAwGA1UEBhMClVTMRgw\n"
+"FgYDVQQKEw9EaWdpQ2VydCBJbmMxGTAXBgNVBAMTEERpZ2lDZXJ0IEdsb2JhbCBS\n"
+"b290IEczMB4XDTIxMDQyODEyMDAwMFoXDTMxMDQyODEyMDAwMFowTzELMAkGA1UE\n"
+"BhMCVVMxGDAWBgNVBAoTD0RpZ2lDZXJ0IEluYzEmMCQGA1UEAxMdRGlnaUNlcnQg\n"
+"VExTIFJTQSBTSEEyNTYgMjAyMCBDQTEwZzAnBgNVBAMMEElTUkcgUm9vdCBYMTCC\n"
+"AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMX3V7SXYF7LiSGY6ndfg5S9\n"
+"771mUvJI/SNDaZfLUfHGLH9vC40F0906h365A4E9SdhF7F8GfSclS7m9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7CAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGG\n"
+"MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFHs6mY8/1TfR08I5H8jKzX9mC9mC\n"
+"MA0GCSqGSIb3DQEBCwUAA4ICAQAN97SXYF7LiSGY6ndfg5S9771mUvJI/SNDaZfL\n"
+"UfHGLH9vC40F0906h365A4E9SdhF7F8GfSclS7m9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"-----END CERTIFICATE-----\n";
+
+// ISRG Root X1 (Let's Encrypt) для HiveMQ Cloud
+static const char* mqtt_ca_cert PROGMEM = 
+"-----BEGIN CERTIFICATE-----\n"
+"MIIFazCCA1OgAwIBAgIRAIIqZz7SZI5RQ4cUCByyDLDUMAwGA1UEBhMClVTMRgw\n"
+"FgYDVQQKEw9EaWdpQ2VydCBJbmMxGTAXBgNVBAMTEERpZ2lDZXJ0IEdsb2JhbCBS\n"
+"b290IEczMB4XDTIxMDQyODEyMDAwMFoXDTMxMDQyODEyMDAwMFowTzELMAkGA1UE\n"
+"BhMCVVMxGDAWBgNVBAoTD0RpZ2lDZXJ0IEluYzEmMCQGA1UEAxMdRGlnaUNlcnQg\n"
+"VExTIFJTQSBTSEEyNTYgMjAyMCBDQTEwZzAnBgNVBAMMEElTUkcgUm9vdCBYMTCC\n"
+"AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMX3V7SXYF7LiSGY6ndfg5S9\n"
+"771mUvJI/SNDaZfLUfHGLH9vC40F0906h365A4E9SdhF7F8GfSclS7m9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7CAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGG\n"
+"MA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFHs6mY8/1TfR08I5H8jKzX9mC9mC\n"
+"MA0GCSqGSIb3DQEBCwUAA4ICAQAN97SXYF7LiSGY6ndfg5S9771mUvJI/SNDaZfL\n"
+"UfHGLH9vC40F0906h365A4E9SdhF7F8GfSclS7m9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
+"5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7u\n"
+"m9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6\n"
+"pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S\n"
+"7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9\n"
+"X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX5S7um9X6pX\n"
 "-----END CERTIFICATE-----\n";
 
 WiFiClientSecure secureClient;
@@ -111,7 +173,8 @@ bool loadConfig() {
 
   // MQTT
   config.services.mqtt.enabled = doc["m_en"] | false;
-  strlcpy(config.services.mqtt.host, doc["m_ip"] | "192.168.1.2", 32);
+  strlcpy(config.services.mqtt.id, doc["m_id"] | "Smart-Controller-01", 64);
+  strlcpy(config.services.mqtt.host, doc["m_ip"] | "192.168.1.2", 64);
   config.services.mqtt.port = doc["m_port"] | 1883;
   strlcpy(config.services.mqtt.user, doc["m_u"] | "user", 32);
   strlcpy(config.services.mqtt.pass, doc["m_p"] | "password", 32);
@@ -228,6 +291,7 @@ bool saveConfig() {
   for (int i = 0; i < 6; i++) tg_ids.add(config.services.telegram.ids[i]);
 
   doc["m_en"] = config.services.mqtt.enabled;
+  doc["m_id"] = config.services.mqtt.id;
   doc["m_ip"] = config.services.mqtt.host;
   doc["m_port"] = config.services.mqtt.port;
   doc["m_u"] = config.services.mqtt.user;
@@ -325,12 +389,6 @@ bool saveConfig() {
   lr_l.add(config.sensors.lr.labels[0]);
   lr_t.add(config.sensors.lr.topics[0]);
 
-
-  // doc["5516_p"] = config.nodes.analog.light_resistor.pin;
-  // doc["5516_l"] = config.nodes.analog.light_resistor.label;
-  // doc["5516_c"] = config.nodes.analog.light_resistor.ui_card;
-  // doc["5516_t"] = config.nodes.analog.light_resistor.topic;
-
   // --- ACTUATORS ---
   doc["r_en"] = config.sensors.relays.enabled;
   JsonArray r_p = doc.createNestedArray("r_p");
@@ -354,6 +412,105 @@ bool saveConfig() {
 }
 
 
+// Помощник для копирования строковых параметров (Labels и Topics)
+void updateCharParam(AsyncWebServerRequest *request, const String& key, char* target, size_t maxSize) {
+    if (request->hasParam(key, true)) {
+        String val = request->getParam(key, true)->value();
+        strlcpy(target, val.c_str(), maxSize);
+    }
+}
+
+// Обобщенная функция для обновления настроек любого датчика
+void processSensorParams(AsyncWebServerRequest *request, const String& prefix, 
+                         bool &enabled, int* pins, int pinCount, 
+                         char (*labels)[32], char (*topics)[16], int dataCount) {
+    
+    // 1. Обработка флага включения (_en)
+    if (request->hasParam(prefix + "_en", true)) {
+        enabled = (request->getParam(prefix + "_en", true)->value() == "true");
+    }
+
+    // 2. Обработка пинов (_p0, _p1...)
+    for (int i = 0; i < pinCount; i++) {
+        String pKey = prefix + "_p" + String(i);
+        if (request->hasParam(pKey, true)) {
+            pins[i] = request->getParam(pKey, true)->value().toInt();
+        }
+    }
+
+    // 3. Обработка меток (_l0, _l1...) и топиков (_t0, _t1...)
+    for (int i = 0; i < dataCount; i++) {
+        updateCharParam(request, prefix + "_l" + String(i), labels[i], 32);
+        updateCharParam(request, prefix + "_t" + String(i), topics[i], 16);
+    }
+}
+
+void readClimateSensors() {}
+void readSecuritySensors() {
+
+
+    // doc["bme_v0"] = String(random(-50, 150)/10.0, 1); 
+    // doc["bme_v1"] = String(random(60, 90));
+    // doc["bme_v2"] = String(random(99000, 102000));
+    // doc["dht_v0"] = String(random(220, 250)/10.0, 1); 
+    // doc["dht_v1"] = String(random(40, 50));
+    // doc["ds_v0"] = String(random(400, 600)/10.0, 1); 
+    // doc["ds_v1"] = String(random(400, 600)/10.0, 1); 
+    // doc["ds_v2"] = String(random(400, 600)/10.0, 1); 
+    // doc["ds_v3"] = String(random(400, 600)/10.0, 1); 
+
+
+    // doc["tcrt_v0"] = String(random(100, 500)); 
+    // doc["lr_v0"] = String(random(0, 100));
+     
+    // doc["ld_v0"] = random(0, 10) > 7;
+    // doc["dr_v0"] = random(0, 10) > 7; 
+    // doc["fl_v0"] = random(0, 10) > 8;
+    // doc["pir_v0"] = random(0, 10) > 8;
+
+    data.bme.t = random(-50, 150)/10.0; 
+    data.bme.h = random(60, 90);
+    data.bme.p = random(99000, 102000);
+    data.dht.t = random(220, 250)/10.0; 
+    data.dht.h = random(40, 50);
+    data.ds.t[0] = random(400, 600)/10.0; 
+    data.ds.t[1] = random(400, 600)/10.0; 
+    data.ds.t[2] = random(400, 600)/10.0; 
+    data.ds.t[3] = random(400, 600)/10.0; 
+  
+
+
+
+     
+    data.relays[0] = random(0, 10) > 7;
+    data.relays[1] = random(0, 10) > 7;
+    data.relays[2] = random(0, 10) > 7;
+    data.relays[3] = random(0, 10) > 7;
+
+
+    // bool changed = false;
+
+    // if (config.sensors.pir.enabled) {
+    //     bool current = digitalRead(config.sensors.pir.pins[0]);
+    //     if (current != data.pir.motion) {
+    //         data.pir.motion = current;
+    //         changed = true;
+    //         if (current) sendTelegramAlert("Внимание: Движение!");
+    //     }
+    // }
+
+    // if (config.sensors.dr.enabled) {
+    //     bool current = digitalRead(config.sensors.dr.pins[0]);
+    //     if (current != data.door.open) {
+    //         data.door.open = current;
+    //         changed = true;
+    //         sendTelegramAlert(current ? "Дверь открыта" : "Дверь закрыта");
+    //     }
+    // }
+
+    // // Если в группе безопасности что-то изменилось — отправляем в MQTT мгновенно
+    // if (changed) sendMqttUpdate();
+}
 
 // --- LED Helpers ---
 void handleLEDStatus() {
@@ -362,6 +519,23 @@ void handleLEDStatus() {
   } else if (wifiConnStatus == W_IDLE) {
     if (millis() - lastLedToggle > 1000) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); lastLedToggle = millis(); }
   }
+}
+
+// Настройка времени для проверки SSL
+void setClock() {
+  configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  Serial.print("Waiting for NTP time sync: ");
+  time_t now = time(nullptr);
+  while (now < 8 * 3600 * 2) {
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+  }
+  Serial.println("");
+  struct tm timeinfo;
+  gmtime_r(&now, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
 }
 
 // --- API Routing ---
@@ -388,6 +562,27 @@ void setupAPI() {
       request->send(response);
     } else request->send(200, "application/json", j);
   });
+  server.on("/api/mqtt-status", HTTP_GET, [](AsyncWebServerRequest *request){
+    StaticJsonDocument<512> doc;
+    bool c = (WiFi.status() == WL_CONNECTED);
+    doc["connected"] = c;
+    if(c) { 
+      doc["m_id"] = config.services.mqtt.id; 
+      doc["m_ip"] = config.services.mqtt.host; 
+      doc["m_port"] = config.services.mqtt.port; 
+      doc["m_u"] = config.services.mqtt.user; 
+      doc["m_p"] = config.services.mqtt.pass; 
+      doc["m_bt"] = config.services.mqtt.base_topic; 
+      doc["m_i"] = config.services.mqtt.interval; 
+      }
+    String j;
+    serializeJson(doc, j);
+    if (isCORS){
+      AsyncWebServerResponse *response = request->beginResponse(200, "application/json", j);
+      response->addHeader("Access-Control-Allow-Origin", "*");
+      request->send(response);
+    } else request->send(200, "application/json", j);
+  });
 
   server.on("/api/update", HTTP_POST, [](AsyncWebServerRequest *request){
     if (isCORS){
@@ -404,7 +599,7 @@ void setupAPI() {
       }
   });
 
-  server.on("/api/get-remote-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
+  server.on("/api/get-manifest", HTTP_GET, [](AsyncWebServerRequest *request) {
     HTTPClient http;
     secureClient.setInsecure(); // Для простоты проксирования
     
@@ -468,7 +663,31 @@ void setupAPI() {
         Serial.println(error.c_str());
     }
   });
-  
+  server.on("/api/set-mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {
+    // В AsyncWebServer ответ обычно отправляется здесь, 
+    // но если нужно отправить результат обработки тела, 
+    // лучше делать это в конце onBody или через флаги.
+    request->send(200); 
+    }, NULL, [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+    
+    DynamicJsonDocument doc(512); // Увеличил до 512 для запаса
+    DeserializationError error = deserializeJson(doc, data, len);
+    
+    if (!error) {
+        Serial.println("Updating MQTT credentials...");
+        strlcpy(config.services.mqtt.id,   doc["m_id"]   | "", 64);
+        strlcpy(config.services.mqtt.host,   doc["m_ip"]   | "", 64);
+        if (doc["m_port"].is<int>()) config.services.mqtt.port = doc["m_port"].as<int>();
+        strlcpy(config.services.mqtt.user,   doc["m_u"]   | "", 32);
+        strlcpy(config.services.mqtt.pass, doc["m_p"] | "", 32);
+        strlcpy(config.services.mqtt.base_topic, doc["m_bt"] | "", 32);
+        if (doc["m_i"].is<int>()) config.services.mqtt.interval = doc["m_i"].as<int>();
+        saveConfig();
+    } else {
+        Serial.print("Ошибка JSON: ");
+        Serial.println(error.c_str());
+    }
+  });
   server.on("/api/ap-disable", HTTP_GET, [](AsyncWebServerRequest *request){
     if (WiFi.status() == WL_CONNECTED) apOffTime = millis() + 5000; 
     if (isCORS){
@@ -535,6 +754,7 @@ void setupAPI() {
 
     // --- Services: MQTT ---
     doc["m_en"]   = config.services.mqtt.enabled;
+    doc["m_id"]   = config.services.mqtt.id;
     doc["m_ip"]   = config.services.mqtt.host;
     doc["m_port"] = config.services.mqtt.port;
     //doc["m_u"]    = config.services.mqtt.user;
@@ -717,40 +937,109 @@ void setupAPI() {
     } else request->send(200);
   });
   server.on("/api/set-sens", HTTP_POST, [](AsyncWebServerRequest *request){
-    // 1. Климатические датчики
-    if(request->hasParam("bme_en", true)) 
-        config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
-    
-    if(request->hasParam("dht_en", true)) 
-        config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
-    
-    if(request->hasParam("ds_en", true)) 
-        config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
-    
-    if(request->hasParam("tcrt_en", true)) 
-        config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+    // Обработка BME280 (1 пин, 3 набора данных: T, H, P)
+    processSensorParams(request, "bme", 
+                        config.sensors.bme.enabled, 
+                        config.sensors.bme.pins, 1, 
+                        config.sensors.bme.labels,
+                        config.sensors.bme.topics, 3);
+    // Обработка DHT22 (1 пин, 2 набора данных: T, H, P)
+    processSensorParams(request, "dht", 
+                        config.sensors.dht.enabled, 
+                        config.sensors.dht.pins, 1, 
+                        config.sensors.dht.labels,
+                        config.sensors.dht.topics, 2);
+    // Обработка DS18B20 (1 пин, 4 датчика)
+    processSensorParams(request, "ds", 
+                        config.sensors.ds.enabled, 
+                        config.sensors.ds.pins, 1, 
+                        config.sensors.ds.labels, 
+                        config.sensors.ds.topics, 4);
 
-    // 2. Бинарные датчики (Binary)
-    if(request->hasParam("pir_en", true)) 
-        config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    // Обработка TCRT5000 (1 пин, 1 датчика)
+    processSensorParams(request, "tcrt", 
+                        config.sensors.tcrt.enabled, 
+                        config.sensors.tcrt.pins, 1, 
+                        config.sensors.tcrt.labels, 
+                        config.sensors.tcrt.topics, 1);
+    // Обработка SR501 (1 пин, 1 датчика)
+    processSensorParams(request, "pir", 
+                        config.sensors.pir.enabled, 
+                        config.sensors.pir.pins, 1, 
+                        config.sensors.pir.labels, 
+                        config.sensors.pir.topics, 1);
+    // Обработка LR2420 (1 пин, 1 датчика)
+    processSensorParams(request, "ld", 
+                        config.sensors.ld.enabled, 
+                        config.sensors.ld.pins, 1, 
+                        config.sensors.ld.labels, 
+                        config.sensors.ld.topics, 1);
+    // Обработка Magnet Sensor, DOOR (1 пин, 1 датчика)
+    processSensorParams(request, "dr", 
+                        config.sensors.dr.enabled, 
+                        config.sensors.dr.pins, 1, 
+                        config.sensors.dr.labels, 
+                        config.sensors.dr.topics, 1);
+    // Обработка Flood Sensor, Flood (1 пин, 1 датчика)
+    processSensorParams(request, "fl", 
+                        config.sensors.fl.enabled, 
+                        config.sensors.fl.pins, 1, 
+                        config.sensors.fl.labels, 
+                        config.sensors.fl.topics, 1);
+    // Обработка LR 5516, Light Resistor (1 пин, 1 датчика)
+    processSensorParams(request, "lr", 
+                        config.sensors.lr.enabled, 
+                        config.sensors.lr.pins, 1, 
+                        config.sensors.lr.labels, 
+                        config.sensors.lr.topics, 1);
+    // Обработка RELEx4, Rele unit (4 пина, 4 реле)
+    processSensorParams(request, "r", 
+                        config.sensors.relays.enabled, 
+                        config.sensors.relays.pins, 4, 
+                        config.sensors.relays.labels, 
+                        config.sensors.relays.topics, 4);
     
-    if(request->hasParam("ld_en", true)) 
-        config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
-    
-    if(request->hasParam("dr_en", true)) 
-        config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
-    
-    if(request->hasParam("fl_en", true)) 
-        config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
+    // Сохранение обновленной конфигурации в файл
+    if (saveConfig()) {
+        request->send(200, "application/json", "{\"status\":\"saved\"}");
+    } else {
+        request->send(500, "application/json", "{\"status\":\"error_saving\"}");
+    }
 
-    // 3. Аналоговые датчики
-    if(request->hasParam("lr_en", true)) 
-        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
-    // 4. Актуаторы (Реле)
-    if(request->hasParam("r_en", true)) 
-        config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
+    // // 1. Климатические датчики
+    // if(request->hasParam("bme_en", true)) 
+    //     config.sensors.bme.enabled = (request->getParam("bme_en", true)->value() == "true");
+    
+    // if(request->hasParam("dht_en", true)) 
+    //     config.sensors.dht.enabled = (request->getParam("dht_en", true)->value() == "true");
+    
+    // if(request->hasParam("ds_en", true)) 
+    //     config.sensors.ds.enabled = (request->getParam("ds_en", true)->value() == "true");
+    
+    // if(request->hasParam("tcrt_en", true)) 
+    //     config.sensors.tcrt.enabled = (request->getParam("tcrt_en", true)->value() == "true");
+
+    // // 2. Бинарные датчики (Binary)
+    // if(request->hasParam("pir_en", true)) 
+    //     config.sensors.pir.enabled = (request->getParam("pir_en", true)->value() == "true");
+    
+    // if(request->hasParam("ld_en", true)) 
+    //     config.sensors.ld.enabled = (request->getParam("ld_en", true)->value() == "true");
+    
+    // if(request->hasParam("dr_en", true)) 
+    //     config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
+    
+    // if(request->hasParam("fl_en", true)) 
+    //     config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
+
+    // // 3. Аналоговые датчики
+    // if(request->hasParam("lr_en", true)) 
+    //     config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
+    // // 4. Актуаторы (Реле)
+    // if(request->hasParam("r_en", true)) 
+    //     config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
     // Сохраняем обновленную структуру в LittleFS
-    saveConfig(); 
+    //saveConfig(); 
 
     // Ответ сервера с учетом CORS
     if (isCORS){
@@ -781,8 +1070,8 @@ void setupAPI() {
         config.sensors.dr.enabled = (request->getParam("dr_en", true)->value() == "true");
     if(request->hasParam("fl_en", true)) 
         config.sensors.fl.enabled = (request->getParam("fl_en", true)->value() == "true");
-    if(request->hasParam("5516_en", true)) 
-        config.sensors.lr.enabled = (request->getParam("5516_en", true)->value() == "true");
+    if(request->hasParam("lr_en", true)) 
+        config.sensors.lr.enabled = (request->getParam("lr_en", true)->value() == "true");
     if(request->hasParam("r_en", true)) 
         config.sensors.relays.enabled = (request->getParam("r_en", true)->value() == "true");
 
@@ -826,8 +1115,10 @@ void setupAPI() {
     // --- 4. MQTT (Services) ---
     if(request->hasParam("m_en", true)) 
         config.services.mqtt.enabled = (request->getParam("m_en", true)->value() == "true");
+    if(request->hasParam("m_id", true)) 
+        strlcpy(config.services.mqtt.id, request->getParam("m_id", true)->value().c_str(), 64);
     if(request->hasParam("m_ip", true)) 
-        strlcpy(config.services.mqtt.host, request->getParam("m_ip", true)->value().c_str(), 32);
+        strlcpy(config.services.mqtt.host, request->getParam("m_ip", true)->value().c_str(), 64);
     if(request->hasParam("m_port", true)) 
         config.services.mqtt.port = request->getParam("m_port", true)->value().toInt();
     if(request->hasParam("m_u", true)) 
@@ -913,80 +1204,197 @@ void handleResetButton() {
 }
 //  Сравнение версий без динамической памяти
 int semver_compare(const char* v1, const char* v2) {
-    int a[3] = {0,0,0}, b[3] = {0,0,0};
-    if (v1[0] == 'v') v1++;
-    if (v2[0] == 'v') v2++;
-    sscanf(v1, "%d.%d.%d", &a[0], &a[1], &a[2]);
-    sscanf(v2, "%d.%d.%d", &b[0], &b[1], &b[2]);
-    for (int i = 0; i < 3; i++) {
-        if (a[i] > b[i]) return 1;
-        if (a[i] < b[i]) return -1;
-    }
-    return 0;
+  int a[3] = {0,0,0}, b[3] = {0,0,0};
+  if (v1[0] == 'v') v1++;
+  if (v2[0] == 'v') v2++;
+  sscanf(v1, "%d.%d.%d", &a[0], &a[1], &a[2]);
+  sscanf(v2, "%d.%d.%d", &b[0], &b[1], &b[2]);
+  for (int i = 0; i < 3; i++) {
+      if (a[i] > b[i]) return 1;
+      if (a[i] < b[i]) return -1;
+  }
+  return 0;
 }
 
 void handleUpdateOTA() {
-    if (!primitiveUpdateFlag) return;
-    Serial.println(F("--- OTA Check Started ---"));
-    //secureClient.setCACert(root_ca_pem);
-    secureClient.setInsecure(); // Игнорировать проверку сертификатов
+  if (!primitiveUpdateFlag) return;
+  Serial.println(F("--- OTA Check Started ---"));
+  //secureClient.setCACert(root_ca_pem);
+  secureClient.setInsecure(); // Игнорировать проверку сертификатов
+  
+  HTTPClient http;
+  //http.setReuse(true);
+  http.setTimeout(5000); // 5 секунд таймаут, чтобы отправить статус 200 запроса
+  
+  if (http.begin(secureClient, MANIFEST_URL)) {
+    Serial.println(F("Send request. HTTP.GET"));
+    http.addHeader(F("User-Agent"), F("ESP32-OTA-Client"));
+    int httpCode = http.GET();
+    Serial.print("httpCode");
+    Serial.println(httpCode);
     
-    HTTPClient http;
-    //http.setReuse(true);
-    http.setTimeout(5000); // 5 секунд таймаут, чтобы отправить статус 200 запроса
-    
-    if (http.begin(secureClient, MANIFEST_URL)) {
-        Serial.println(F("Send request. HTTP.GET"));
-        http.addHeader(F("User-Agent"), F("ESP32-OTA-Client"));
-        int httpCode = http.GET();
-        Serial.print("httpCode");
-        Serial.println(httpCode);
-        
-        Serial.print("HTTP_CODE_OK: ");
-        Serial.println(HTTP_CODE_OK);
-        if (httpCode == HTTP_CODE_OK) {
-            Serial.println("Read JSON: ");
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, http.getStream());
-            
-            if (!error) {            
-                Serial.println("JSON - OK.");
+    Serial.print("HTTP_CODE_OK: ");
+    Serial.println(HTTP_CODE_OK);
+    if (httpCode == HTTP_CODE_OK) {
+      Serial.println("Read JSON: ");
+      StaticJsonDocument<512> doc;
+      DeserializationError error = deserializeJson(doc, http.getStream());
+      
+      if (!error) {            
+        Serial.println("JSON - OK.");
 
-                const char* new_version = doc["version"] | "";
-                const char* firmware_url = doc["url"] | "";
-                const char* release_notes = doc["notes"] | "No notes provided";
+        const char* new_version = doc["version"] | "";
+        const char* firmware_url = doc["url"] | "";
+        const char* release_notes = doc["notes"] | "No notes provided";
 
-                if (semver_compare(new_version, CURRENT_VERSION) > 0) {
-                    Serial.println(F("\n--- UPDATE DETECTED ---"));
-                    Serial.printf("Version: %s\nNotes: %s\n", new_version, release_notes);
-                    Serial.println(F("Downloading firmware via HTTPS..."));
+        if (semver_compare(new_version, CURRENT_VERSION) > 0) {
+          Serial.println(F("\n--- UPDATE DETECTED ---"));
+          Serial.printf("Version: %s\nNotes: %s\n", new_version, release_notes);
+          Serial.println(F("Downloading firmware via HTTPS..."));
 
-                    httpUpdate.rebootOnUpdate(true);
-                    // Вызов обновления (без setHash для совместимости)
-                    t_httpUpdate_return ret = httpUpdate.update(secureClient, firmware_url);
-                    Serial.print("Return info after update: ");
-                    Serial.println(ret);
-                    if (ret == HTTP_UPDATE_FAILED) {
-                        Serial.printf("OTA Error (%d): %s\n", 
-                                      httpUpdate.getLastError(), 
-                                      httpUpdate.getLastErrorString().c_str());
-                    }
-                } else Serial.printf("System: Current version %s is up to date.\n", CURRENT_VERSION);
-            } else Serial.println("JSON - ERROR.");
+          httpUpdate.rebootOnUpdate(true);
+          // Вызов обновления (без setHash для совместимости)
+          t_httpUpdate_return ret = httpUpdate.update(secureClient, firmware_url);
+          Serial.print("Return info after update: ");
+          Serial.println(ret);
+          if (ret == HTTP_UPDATE_FAILED) {
+            Serial.printf("OTA Error (%d): %s\n", 
+                          httpUpdate.getLastError(), 
+                          httpUpdate.getLastErrorString().c_str());
+          }
+        } else Serial.printf("System: Current version %s is up to date.\n", CURRENT_VERSION);
+      } else Serial.println("JSON - ERROR.");
 
-        }
-        http.end();
     }
+    http.end();
+  }
 }
 
 void handleDiagnostics() {
     static unsigned long lastDiag = 0;
     if (millis() - lastDiag > DIAGNOSTIC_INTERVAL) {
         lastDiag = millis();
-        Serial.printf("System: OK | Version: %s | Free Heap: %u B | RSSI: %d\n", 
-                      CURRENT_VERSION, ESP.getFreeHeap(), WiFi.RSSI());
+        Serial.printf("System: OK | Version: %s | Free Heap: %u B | Min free Heap: %u B | RSSI: %d\n", 
+                      CURRENT_VERSION, ESP.getFreeHeap(), ESP.getMinFreeHeap(), WiFi.RSSI());
     }
 }
+
+void handleSensors(){
+  static unsigned long lastSecurityCheck = 0;
+  static unsigned long lastClimateCheck = 0;
+  unsigned long now = millis();
+
+
+  // Группа БЕЗОПАСНОСТЬ (1 секунда)
+  if (now - lastSecurityCheck >= 1000) {
+      lastSecurityCheck = now;
+      readSecuritySensors();
+      // sendMqttOnChange(); // Отправляем security, если были изменения.
+  }
+
+  // Группа КЛИМАТ (5 секунд)
+  if (now - lastClimateCheck >= 5000) {
+      lastClimateCheck = now;
+      readClimateSensors();
+  }
+
+}
+void sendMqttTelemetry() {
+    StaticJsonDocument<1024> doc;
+    
+    // Берем данные из структуры data, а настройки (топики) из config
+    if (config.sensors.bme.enabled) {
+      doc[config.sensors.bme.topics[0]] = data.bme.t;
+      doc[config.sensors.bme.topics[1]] = data.bme.h;
+      doc[config.sensors.bme.topics[2]] = data.bme.p;
+    }
+    if (config.sensors.dht.enabled) {
+      doc[config.sensors.dht.topics[0]] = data.dht.t;
+      doc[config.sensors.dht.topics[1]] = data.dht.h;
+    }
+    if (config.sensors.ds.enabled) {
+      JsonArray ds = doc.createNestedArray("ds");
+      for(int i=0; i<4; i++) ds.add(data.ds.t[i]);
+    }
+    if (config.sensors.relays.enabled) {
+      JsonArray r = doc.createNestedArray("r");
+      for(int i=0; i<4; i++) r.add(data.relays[i]);
+    }
+    
+    char buffer[1024];
+    serializeJson(doc, buffer);
+    mqttClient.publish(config.services.mqtt.base_topic, buffer);
+    //Serial.println("MQTT Data sent");
+}
+void handleMQTT() {
+  // if (!config.services.mqtt.enabled) return;
+  // if (WiFi.status() != WL_CONNECTED) return;
+
+  // static unsigned long lastReconnectAttempt = 0; // Таймер для попыток подключения
+  // static unsigned long lastTelemetryTime = 0;    // Таймер для отправки данных
+  // unsigned long now = millis();
+
+  // // 1. Проверка и поддержание соединения (раз в 5 секунд при обрыве)
+  // if (!mqttClient.connected()) {
+  //   if (now - lastReconnectAttempt > 5000) {
+  //     lastReconnectAttempt = now;
+  //     setClock();
+  //     Serial.print("Attempting MQTT connection...");
+  //     mqttSecureClient.setInsecure();
+  //     String clientId = String(config.services.mqtt.id);
+  //     if (mqttClient.connect(clientId.c_str(), config.services.mqtt.user, config.services.mqtt.pass)) {
+  //       Serial.println("connected");
+  //       // После подключения можно сразу отправить данные или сбросить таймер отправки
+  //     } else {
+  //       Serial.print("failed, rc=");
+  //       Serial.print(mqttClient.state());
+  //       Serial.println(" try again in 5 seconds");
+  //     }
+  //   }
+  // }   
+  // // 2. Логика отправки данных (только если подключены)
+  // else {
+  //   mqttClient.loop(); // Обработка входящих сообщений и поддержание жизни (ping)
+  //   // Проверка интервала отправки (переводим секунды из конфига в миллисекунды)
+  //   if (now - lastTelemetryTime >= (config.services.mqtt.interval * 1000UL)) {
+  //     lastTelemetryTime = now;
+  //     sendMqttTelemetry();
+  //     Serial.println("Telemetry sent to MQTT");
+  //   }
+  // }
+
+  static unsigned long lastMqttMsgTime = 0;
+  if (!config.services.mqtt.enabled) return;
+  if (!WiFi.status() == WL_CONNECTED) return;
+  unsigned long now = millis();
+  // Пытаемся подключиться раз в 5 секунд, чтобы не блокировать loop
+  if (now - lastMqttMsgTime > config.services.mqtt.interval*1000) {
+    if (!mqttClient.connected()) {
+      // setClock();
+      Serial.print("Attempting MQTT connection...");
+      // String clientId = String(config.services.mqtt.id); // clientId должен быть уникальным
+      // // // mqttSecureClient.setCACert(mqtt_ca_cert); 
+      // // mqttSecureClient.setInsecure();
+      // mqttClient.setServer(config.services.mqtt.host, config.services.mqtt.port);
+      String clientId = String(config.services.mqtt.id); // clientId должен быть уникальным
+      if (mqttClient.connect(clientId.c_str(), config.services.mqtt.user, config.services.mqtt.pass)) 
+          Serial.println("connected");
+      else {
+          Serial.print("failed, rc=");
+          Serial.print(mqttClient.state());
+          Serial.println(" try again in 5 seconds");
+      }
+    }
+    if (mqttClient.connected()) {
+      sendMqttTelemetry();
+    }
+    lastMqttMsgTime = now;
+  }
+  mqttClient.loop();
+}
+
+
+
 // --- Main ---
 void setup() {
   Serial.begin(115200);
@@ -1016,14 +1424,37 @@ void setup() {
     Serial.print("Success IP: "); Serial.println(WiFi.localIP());
   }
   setupAPI();
+  setClock();
+
+  // mqttSecureClient.setCACert(mqtt_ca_cert); 
+  mqttSecureClient.setInsecure();
+  mqttClient.setServer(config.services.mqtt.host, config.services.mqtt.port);
 }
 
 void loop() {
+  handleSensors();
   handleWiFiStatus();       // Обработчик подкючения к сети WiFi
-  handleAPTimeout();        // Обработчик автоотключения точки доступа
+  //handleAPTimeout();        // Обработчик автоотключения точки доступа
   handleLEDStatus();        // Обработчик мигания внутреннего светодиода
+  handleMQTT();             // Работа с MQTT
   handleResetButton();      // Обработчик кнопки RESET
   handleDiagnostics();      // Задача 3: Вывод статуса
   handleUpdateOTA();        // Обновление OS
+  delay(1);
 
 }
+
+
+// Задачи:
+
+// Добавить функционал MQTT
+// 1883
+// 8883
+// 8884
+
+// Добавить функционал Telegram
+
+// Для датчиков вроде PIR или Door (геркон) крайне рекомендую использовать не опрос в loop, 
+// а прерывания (Interrupts). 
+// Это позволит ESP32 мгновенно реагировать на открытие двери, 
+// даже если в этот момент она занята долгим опросом датчика BME280.

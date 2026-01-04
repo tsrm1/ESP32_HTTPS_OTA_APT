@@ -1,5 +1,5 @@
-#ifndef SENSORS_CONFIG_H
-#define SENSORS_CONFIG_H
+#ifndef SENSORS_H
+#define SENSORS_H
 
 struct Config {
   struct System {
@@ -26,7 +26,8 @@ struct Config {
     } telegram;
     struct {
       bool enabled = false;
-      char host[32] = "192.168.1.2";
+      char id[64] = "Smart-Controller-01";
+      char host[64] = "192.168.1.2";
       int port = 1883;
       char user[32] = "user";
       char pass[32] = "password";
@@ -99,4 +100,28 @@ struct Config {
     } relays;
   } sensors;
 };
+
+
+struct SensorData {
+    // Группа Климат
+    struct { float t = 0, h = 0, p = 0; } bme;
+    struct { float t = 0, h = 0; } dht;
+    struct { float t[4] = {0,0,0,0}; } ds;
+    struct { int l = 0; } tcrt;
+    struct { int l = 0; } lr;
+    
+    // Группа Безопасность (бинарные состояния)
+    struct { bool motion = false; } pir;
+    struct { bool presence = false; } ld;
+    struct { bool open = false; } dr;
+    struct { bool flood = false; } fl;
+    
+    // Состояние реле
+    bool relays[4] = {false, false, false, false};
+
+    // Системные флаги
+    uint32_t uptime = 0;
+    int rssi = 0;
+};
+
 #endif

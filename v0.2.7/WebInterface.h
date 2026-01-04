@@ -93,7 +93,8 @@ const char index_html[] PROGMEM = R"rawliteral(
         font-size: 13px;
         font-weight: 600;
       }
-      .row input {
+      .row input,
+      textarea {
         flex: 1;
         padding: 8px;
         border: 1px solid #ddd;
@@ -431,7 +432,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               <button class="btn" onclick="connWiFi()">Connect</button>
 
               <div id="cur-wifi" class="section">
-                <h3>Connected to:</h3>
+                <h3>Connected to WiFi:</h3>
                 <div class="row">
                   <label>SSID</label
                   ><span id="cur_ssid" style="font-weight: bold"></span>
@@ -499,6 +500,7 @@ const char index_html[] PROGMEM = R"rawliteral(
               ></label>
             </div>
             <div class="acc-panel" id="cont_m">
+              <div class="row"><label>Device ID</label><input id="m_id" /></div>
               <div class="row"><label>Broker IP</label><input id="m_ip" /></div>
               <div class="row">
                 <label>Port</label><input id="m_port" type="number" />
@@ -519,6 +521,34 @@ const char index_html[] PROGMEM = R"rawliteral(
                 <label>Interval (s)</label><input id="m_i" type="number" />
               </div>
               <button class="btn" onclick="connMQTT()">Connect</button>
+
+              <div id="cur-mqtt" class="section">
+                <h3>Connected to MQTT:</h3>
+                <div class="row">
+                  <label>ID</label
+                  ><span id="cur_m_id" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>HOST</label
+                  ><span id="cur_m_ip" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>Port</label
+                  ><span id="cur_m_port" style="font-weight: bold"></span>
+                </div>
+                <div class="row">
+                  <label>Login</label><span id="cur_m_u"></span>
+                </div>
+                <div class="row">
+                  <label>Pass</label><span id="cur_m_p"></span>
+                </div>
+                <div class="row">
+                  <label>Base topic</label><span id="cur_m_bt"></span>
+                </div>
+                <div class="row">
+                  <label>Interval</label><span id="cur_m_i"></span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -571,16 +601,26 @@ const char index_html[] PROGMEM = R"rawliteral(
               >
                 Check update
               </button>
-              <div>
+
+              <div class="section" id="s_ver_info">
                 <div class="row">
                   <label>Current ver.</label><input id="s_cur_ver" readonly />
                 </div>
-
                 <div class="row">
                   <label>Server ver.</label><input id="s_serv_ver" readonly />
                 </div>
-                <div id="s_serv_notes"></div>
+                <div class="row">
+                  <label for="s_serv_notes">Description of changes:</label>
+                  <textarea
+                    id="s_serv_notes"
+                    name="story"
+                    rows="6"
+                    cols="70"
+                    readonly
+                  ></textarea>
+                </div>
               </div>
+
               <button class="btn" onclick="updateOS()">Update OS</button>
             </div>
           </div>
@@ -704,6 +744,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         e.currentTarget.classList.add("active");
         getSettings(); // запрос на обновление настроек
         pollWifiStatus(); // запрос состояния подключения к локальной сети WiFi
+        pollMQTTStatus(); // запрос состояния подключения к MQTT
       }
 
       // Скрытие/отображение содержимого закладок
@@ -802,6 +843,32 @@ const char index_html[] PROGMEM = R"rawliteral(
               link.href = url;
               link.innerText = url;
               fetch(`${BASE_URL}/api/ap-disable`);
+            } else {
+              setTimeout(pollWifiStatus, 3000);
+            }
+          });
+      }
+      // Получение состояния подключения к локальной сети WiFi
+      function pollMQTTStatus() {
+        fetch(`${BASE_URL}/api/mqtt-status`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.connected) {
+              document.getElementById("cur-mqtt").style.display = "block";
+              document.getElementById("cur_m_id").innerText = d.m_id;
+              document.getElementById("cur_m_ip").innerText = d.m_ip;
+              document.getElementById("cur_m_port").innerText = d.m_port;
+              document.getElementById("cur_m_u").innerText = d.m_u;
+              document.getElementById("cur_m_p").innerText = d.m_p;
+              document.getElementById("cur_m_bt").innerText = d.m_bt;
+              document.getElementById("cur_m_i").innerText = d.m_i;
+              // document.getElementById("cur_ip").innerText = d.ip;
+              // document.getElementById("cur_rssi").innerText = d.rssi + " dBm";
+              // const url = "http://" + d.ip + "/";
+              // const link = document.getElementById("cur_link");
+              // link.href = url;
+              // link.innerText = url;
+              // fetch(`${BASE_URL}/api/ap-disable`);
             } else {
               setTimeout(pollWifiStatus, 3000);
             }
@@ -947,7 +1014,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         function generateSensorSettings() {
           SENS_MAP.forEach((sensData) => {
-            console.log(sensData);
             let html = "";
             // Вывод GPIO
             for (let j = 0; j < sensData[1]; j++)
@@ -981,35 +1047,28 @@ const char index_html[] PROGMEM = R"rawliteral(
             return response.json();
           })
           .then((data) => {
-            // if (data.connected) {
+            // if (data.connected)
 
-            const values = ["m_ip", "m_port", "m_bt", "m_i"];
+            const values = ["m_id", "m_ip", "m_port", "m_bt", "m_i"];
+            values.forEach((key) => {
+              const el = document.getElementById(key);
+              if (el) el.value = data[key];
+              // const el_card = document.getElementById(`card_${key}`);
+              // if (el_card) el_card.textContent = data[key];
+            });
+
+            // document.getElementById("m_id").value = data[m_id];
+            // document.getElementById("m_ip").value = data[m_ip];
+            // document.getElementById("m_port").value = data[m_port];
+            // document.getElementById("m_bt").value = data[m_t];
+            // document.getElementById("m_i").value = data[m_i];
 
             switchers.forEach((key) => {
               const element = document.getElementById(key);
               if (element) element.checked = data[key];
             });
 
-            values.forEach((key) => {
-              const el = document.getElementById(key);
-              if (el) el.value = data[key];
-              const el_card = document.getElementById(`card_${key}`);
-              if (el_card) el_card.textContent = data[key];
-            });
-
-            // arrays.forEach((key) => {
-            //   if (data[key] && Array.isArray(data[key])) {
-            //     for (let i = 0; i < data[key].length; i++) {
-            //       const el = document.getElementById(`${key + i}`);
-            //       if (el) el.value = data[key][i];
-            //       const el_card = document.getElementById(`card_${key}${i}`);
-            //       if (el_card) el_card.textContent = data[key][i];
-            //     }
-            //   }
-            // });
-
             SENS_MAP.forEach((sensData) => {
-              //console.log(sensData[0]);
               for (let i = 0; i < sensData[1]; i++) {
                 // Sensors, Pin
                 const pin = document.getElementById(`${sensData[0]}_p${i}`);
@@ -1034,11 +1093,6 @@ const char index_html[] PROGMEM = R"rawliteral(
             //   const element = document.getElementById(`r_p${i}`);
             //   if (element) element.value = data.r_p[i];
             // }
-
-            // document.getElementById("m_ip").value = data[m_ip];
-            // document.getElementById("m_port").value = data[m_port];
-            // document.getElementById("m_t").value = data[m_t];
-            // document.getElementById("m_i").value = data[m_i];
 
             // for (let i = 0; i < data["ids_c"]; i++) addUserId(data.ids[i]);
             // if (activeIds === 0) addUserId("");
@@ -1072,36 +1126,39 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         }
       }
-
-      // function checkUpdateOS() {
-      //   // fetch(`${BASE_URL}/api/get-remote-manifest`, {
-      //   fetch(
-      //     `https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json`,
-      //     {
-      //       method: "GET",
-      //       headers: { Accept: "application/json", mode: "cors" },
-      //     }
-      //   )
-      //     .then((response) => {
-      //       if (!response.ok)
-      //         throw new Error(`Ошибка HTTP: ${response.status}`);
-      //       return response.json();
-      //     })
-      //     .then((data) => {
-      //       console.log("Версия на сервере:", data.version);
-      //       console.log("Описание:", data.notes);
-      //       console.log("Ссылка на прошивку:", data.url);
-      //       document.getElementById("s_serv_ver").value = data.version;
-      //       document.getElementById("s_serv_notes").textContent = data.notes;
-      //       return data;
-      //     })
-      //     .catch((error) => {
-      //       console.error("Не удалось получить манифест:", error);
-      //     });
-      // }
+      function connMQTT() {
+        const msg = {};
+        msg["m_id"] = document.getElementById("m_id").value;
+        msg["m_ip"] = document.getElementById("m_ip").value;
+        msg["m_port"] = parseInt(document.getElementById("m_port").value);
+        msg["m_u"] = document.getElementById("m_u").value;
+        msg["m_p"] = document.getElementById("m_p").value;
+        msg["m_bt"] = document.getElementById("m_bt").value;
+        msg["m_i"] = parseInt(document.getElementById("m_i").value);
+        fetch(`${BASE_URL}/api/set-mqtt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          //mode: "cors",
+          body: JSON.stringify(msg),
+        })
+          .then(() => {
+            document.getElementById("m_ip").value = "";
+            document.getElementById("m_port").value = "";
+            document.getElementById("m_u").value = "";
+            document.getElementById("m_p").value = "";
+            document.getElementById("m_bt").value = "";
+            document.getElementById("m_i").value = "";
+            alert("MQTT credentials was changed.");
+          })
+          .catch((error) => {
+            alert(error);
+          });
+      }
       function checkUpdateOS() {
-        const MANIFEST_URL =
-          "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        // const MANIFEST_URL =
+        //   "https://secobj.netlify.app/esp32/ESP32_HTTPS_OTA_APT/manifest.json";
+        const MANIFEST_URL = `${BASE_URL}/api/get-manifest`;
+
         fetch(MANIFEST_URL, {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -1112,9 +1169,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             return response.json();
           })
           .then((data) => {
-            console.log("Версия на сервере:", data.version);
-            console.log("Описание:", data.notes);
-            console.log("Ссылка на прошивку:", data.url);
+            document.getElementById("s_ver_info").style.display = "block";
             document.getElementById("s_serv_ver").value = data.version;
             document.getElementById("s_serv_notes").textContent = data.notes;
             return data;
@@ -1132,6 +1187,31 @@ const char index_html[] PROGMEM = R"rawliteral(
           }
         );
       }
+      function applySet(type) {
+        var formData = new FormData();
+        var inputs = document.querySelectorAll('[id^="' + type + '_"]');
+        inputs.forEach(function (input) {
+          if (input.type === "checkbox")
+            formData.append(input.id, input.checked ? "true" : "false");
+          else formData.append(input.id, input.value);
+        });
+        fetch(BASE_URL + "/api/set-sens", {
+          method: "POST",
+          body: formData,
+        })
+          .then(function (response) {
+            if (response.ok) {
+              alert("Settings " + type.toUpperCase() + " saved.");
+            } else {
+              alert("Server ERROR: " + response.status);
+            }
+          })
+          .catch(function (error) {
+            console.error("Connection ERROR:", error);
+            alert("Connection with ESP32 ERROR!");
+          });
+      }
+
       function saveSens() {
         const f = new FormData();
         f.append("bme_en", document.getElementById("bme_en").checked);
@@ -1163,8 +1243,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         f.append("m_p", document.getElementById("m_p").value);
         f.append("m_bt", document.getElementById("m_t").value);
         f.append("m_i", document.getElementById("m_i").value);
-        // f.append("w_u", document.getElementById("w_u").value);
-        // f.append("w_p", document.getElementById("w_p").value);
         fetch(`${BASE_URL}/api/set-srv`, { method: "POST", body: f }).then(() =>
           alert("Saved.")
         );
