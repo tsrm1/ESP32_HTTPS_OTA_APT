@@ -1,0 +1,22 @@
+iot/
+ └── esp32_01/
+      ├── telemetry     ← данные
+      ├── status        ← online/offline
+      └── command/
+           ├── relay1
+           ├── relay2
+           └── config
+
+
+Topic: iot/esp32_01/telemetry
+Payload:
+{
+  "voltage":230.4,
+  "current":3.12,
+  "power":718.5,
+  "relay1":true
+}
+
+Topic: iot/esp32_01/command/relay1
+Payload: true
+{ "value": true }

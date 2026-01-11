@@ -1,0 +1,29 @@
+Протокол автообнаружения устройств 🔌
+
+Каждое устройство при старте публикует:
+Topic: iot/esp32_01/hello
+Payload: JSON
+{
+  "device_id": "esp32_01",
+  "name": "Main power meter",
+  "model": "ESP32 + PZEM",
+  "fw": "1.0.3",
+  "telemetry_topic": "iot/esp32_01/telemetry",
+  "command_base": "iot/esp32_01/command",
+  "parameters": {
+    "voltage": { "type": "number", "unit": "V" },
+    "current": { "type": "number", "unit": "A" },
+    "power": { "type": "number", "unit": "W" },
+    "relay1": { "type": "boolean", "control": true }
+  }
+}
+
+Что делает UI
+
+При получении hello:
+Добавляет устройство в devices
+Создаёт parameters автоматически
+Предлагает:
+“Добавить на Dashboard?”
+
+🔥 Ты буквально получаешь Plug-and-Play IoT.

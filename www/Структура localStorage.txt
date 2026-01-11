@@ -1,0 +1,61 @@
+Структура localStorage
+
+Один ключ: mqtt-dashboard-config
+Содержимое: JSON
+{
+  "mqtt": {
+    "url": "wss://xxxx.hivemq.cloud:8884/mqtt",
+    "username": "user",
+    "password": "pass",
+    "clientId": "webclient-1234",
+    "connected": false
+  },
+
+  "devices": {
+    "esp32_01": {
+      "name": "Power meter",
+      "status": "online",
+      "lastSeen": 1736920221
+    }
+  },
+
+  "parameters": {
+    "power": {
+      "device": "esp32_01",
+      "topic": "iot/esp32_01/telemetry",
+      "jsonKey": "power",
+      "type": "number",
+      "unit": "W"
+    },
+    "relay1": {
+      "device": "esp32_01",
+      "topic": "iot/esp32_01/telemetry",
+      "jsonKey": "relay1",
+      "type": "boolean",
+      "controlTopic": "iot/esp32_01/command/relay1"
+    }
+  },
+
+  "dashboard": {
+    "layout": [
+      {
+        "id": "card1",
+        "x": 0,
+        "y": 0,
+        "w": 2,
+        "h": 1,
+        "parameter": "power",
+        "type": "number"
+      },
+      {
+        "id": "card2",
+        "x": 2,
+        "y": 0,
+        "w": 1,
+        "h": 1,
+        "parameter": "relay1",
+        "type": "switch"
+      }
+    ]
+  }
+}

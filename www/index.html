@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic MQTT Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+      :root {
+        --bg: #f0f2f5;
+        --card-bg: #ffffff;
+        --primary: #007bff;
+        --text: #333;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: var(--bg);
+        margin: 0;
+        color: var(--text);
+      }
+
+      /* Навигация */
+      nav {
+        background: #2c3e50;
+        padding: 1rem;
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+      }
+      nav a {
+        color: white;
+        text-decoration: none;
+        font-weight: bold;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      nav a.active {
+        background: var(--primary);
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 0 20px;
+      }
+      .page {
+        display: none;
+      }
+      .page.active {
+        display: block;
+      }
+
+      /* Grid-сетка карточек */
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 20px;
+      }
+
+      /* Карточка параметра */
+      .card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: transform 0.2s;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+      }
+      .card-title {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+      .card-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+      }
+      .card-value-container {
+        display: flex;
+        align-items: baseline;
+        gap: 5px;
+      }
+      .card-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: var(--primary);
+      }
+      .card-unit {
+        font-size: 1rem;
+        color: #888;
+      }
+
+      /* Стили переключателя (Switch)  */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+        margin-top: 10px;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      input:checked + .slider {
+        background-color: #28a745;
+      }
+      input:checked + .slider:before {
+        transform: translateX(20px);
+      }
+
+      /* Форма настроек */
+      .settings-form {
+        background: white;
+        padding: 25px;
+        border-radius: 12px;
+        max-width: 500px;
+        margin: 0 auto;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+      button {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 1rem;
+      }
+
+      pre {
+        background: #272822;
+        color: #f8f8f2;
+        padding: 15px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a onclick="showPage('mqtt')" id="nav-mqtt">MQTT</a>
+      <a onclick="showPage('dash')" id="nav-dash">Dashboard</a>
+      <a onclick="showPage('raw')" id="nav-raw">ROW DATA</a>
+    </nav>
+
+    <div class="container">
+      <div id="page-mqtt" class="page">
+        <div class="settings-form">
+          <h2>Настройки подключения</h2>
+          <div class="form-group">
+            <label>Broker URL</label><input type="text" id="cfg_url" />
+          </div>
+          <div class="form-group">
+            <label>Username</label><input type="text" id="cfg_user" />
+          </div>
+          <div class="form-group">
+            <label>Password</label><input type="password" id="cfg_pass" />
+          </div>
+          <div class="form-group">
+            <label>Topic</label><input type="text" id="cfg_topic" />
+          </div>
+          <button onclick="saveAndConnect()">Save Settings</button>
+        </div>
+      </div>
+
+      <div id="page-dash" class="page">
+        <div id="dashboard-container" class="dashboard-grid"></div>
+      </div>
+
+      <div id="page-raw" class="page">
+        <div style="background: white; padding: 20px; border-radius: 12px">
+          <h3>Последний полученный пакет</h3>
+          <pre id="raw-json">Waiting for data...</pre>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const STORAGE_KEY = "mqtt-dashboard-config"; //
+      let client = null;
+
+      // Иконки типов параметров (заглушки)
+      const icons = {
+        temperature: "🌡️",
+        humidity: "💧",
+        pressure: "⏲️",
+        relay: "🔌",
+        uptime: "⏱️",
+        default: "📊",
+      };
+
+      // 1. Инициализация стандартной структуры localStorage [cite: 2, 3]
+      function getInitialConfig() {
+        return {
+          mqtt: {
+            url: "",
+            username: "",
+            password: "",
+            topic: "#",
+            connected: false,
+          },
+          parameters: {
+            t1: {
+              name: "Temp 1",
+              jsonKey: "/t1",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            t2: {
+              name: "Temp 2",
+              jsonKey: "/t2",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            t3: {
+              name: "Temp 3",
+              jsonKey: "/t3",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            t4: {
+              name: "Temp 4",
+              jsonKey: "/t4",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            bme_t: {
+              name: "BME Temp",
+              jsonKey: "/bme-t",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            bme_h: {
+              name: "BME Hum",
+              jsonKey: "/bme-h",
+              type: "number",
+              unit: "%",
+              icon: "humidity",
+            },
+            bme_p: {
+              name: "BME Press",
+              jsonKey: "/bme-p",
+              type: "number",
+              unit: "Pa",
+              icon: "pressure",
+            },
+            dht_t: {
+              name: "DHT Temp",
+              jsonKey: "/dht-t",
+              type: "number",
+              unit: "°C",
+              icon: "temperature",
+            },
+            dht_h: {
+              name: "DHT Hum",
+              jsonKey: "/dht-h",
+              type: "number",
+              unit: "%",
+              icon: "humidity",
+            },
+            r0: {
+              name: "Relay 0",
+              jsonKey: "/r0",
+              type: "switch",
+              unit: "",
+              icon: "relay",
+            },
+            r1: {
+              name: "Relay 1",
+              jsonKey: "/r1",
+              type: "switch",
+              unit: "",
+              icon: "relay",
+            },
+            r2: {
+              name: "Relay 2",
+              jsonKey: "/r2",
+              type: "switch",
+              unit: "",
+              icon: "relay",
+            },
+            r3: {
+              name: "Relay 3",
+              jsonKey: "/r3",
+              type: "switch",
+              unit: "",
+              icon: "relay",
+            },
+            uptime: {
+              name: "Uptime",
+              jsonKey: "uptime",
+              type: "number",
+              unit: "s",
+              icon: "uptime",
+            },
+          },
+          dashboard: {
+            layout: [
+              { id: "c1", parameter: "bme_t" },
+              { id: "c2", parameter: "bme_h" },
+              { id: "c3", parameter: "bme_p" },
+              { id: "c4", parameter: "dht_t" },
+              { id: "c5", parameter: "dht_h" },
+              { id: "c6", parameter: "t1" },
+              { id: "c7", parameter: "t2" },
+              { id: "c8", parameter: "t3" },
+              { id: "c9", parameter: "t4" },
+              { id: "c10", parameter: "r0" },
+              { id: "c11", parameter: "r1" },
+              { id: "c12", parameter: "r2" },
+              { id: "c13", parameter: "r3" },
+              { id: "c14", parameter: "uptime" },
+            ],
+          },
+        };
+      }
+
+      function loadConfig() {
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : getInitialConfig();
+      }
+
+      // 2. Отрисовка Dashboard
+      function renderDashboard() {
+        const config = loadConfig();
+        const container = document.getElementById("dashboard-container");
+        container.innerHTML = "";
+
+        config.dashboard.layout.forEach((item) => {
+          const param = config.parameters[item.parameter];
+          if (!param) return;
+
+          const card = document.createElement("div");
+          card.className = "card";
+
+          let valueUI = "";
+          if (param.type === "switch") {
+            // [cite: 1, 5]
+            valueUI = `
+                    <label class="switch">
+                        <input type="checkbox" id="val-${param.jsonKey}" disabled>
+                        <span class="slider"></span>
+                    </label>`;
+          } else {
+            valueUI = `
+                    <div class="card-value-container">
+                        <span class="card-value" id="val-${param.jsonKey}">--</span>
+                        <span class="card-unit">${param.unit}</span>
+                    </div>`;
+          }
+
+          card.innerHTML = `
+                <div class="card-title">${param.name}</div>
+                <div class="card-icon">${
+                  icons[param.icon] || icons.default
+                }</div>
+                ${valueUI}
+            `;
+          container.appendChild(card);
+        });
+      }
+
+      // 3. MQTT Логика
+      function connect() {
+        const config = loadConfig();
+        if (!config.mqtt.url) return;
+
+        if (client) client.disconnect();
+
+        const host = config.mqtt.url.replace("wss://", "").split(":")[0];
+        const port = parseInt(config.mqtt.url.split(":")[2]) || 8884;
+
+        client = new Paho.MQTT.Client(
+          host,
+          port,
+          "web_" + Math.random().toString(16).slice(2, 8)
+        );
+
+        client.onMessageArrived = (msg) => {
+          document.getElementById("raw-json").innerText = JSON.stringify(
+            JSON.parse(msg.payloadString),
+            null,
+            4
+          );
+          updateValues(msg.payloadString);
+        };
+
+        client.connect({
+          useSSL: true,
+          userName: config.mqtt.username,
+          password: config.mqtt.password,
+          onSuccess: () => client.subscribe(config.mqtt.topic),
+        });
+      }
+
+      function updateValues(payload) {
+        const data = JSON.parse(payload);
+        const config = loadConfig();
+
+        Object.keys(config.parameters).forEach((key) => {
+          const param = config.parameters[key];
+          const newVal = data[param.jsonKey];
+
+          if (newVal !== undefined) {
+            const el = document.getElementById(`val-${param.jsonKey}`);
+            if (!el) return;
+
+            if (param.type === "switch") {
+              // Если значение больше 0 или true - считаем ON
+              el.checked = newVal === true || newVal > 0;
+            } else {
+              el.innerText = newVal;
+            }
+          }
+        });
+      }
+
+      // 4. Утилиты
+      function showPage(page) {
+        document
+          .querySelectorAll(".page")
+          .forEach((p) => p.classList.remove("active"));
+        document
+          .querySelectorAll("nav a")
+          .forEach((a) => a.classList.remove("active"));
+        document.getElementById("page-" + page).classList.add("active");
+        document.getElementById("nav-" + page).classList.add("active");
+      }
+
+      function saveAndConnect() {
+        const config = loadConfig();
+        config.mqtt.url = document.getElementById("cfg_url").value;
+        config.mqtt.username = document.getElementById("cfg_user").value;
+        config.mqtt.password = document.getElementById("cfg_pass").value;
+        config.mqtt.topic = document.getElementById("cfg_topic").value;
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+        connect();
+        alert("Settings saved!");
+      }
+
+      window.onload = () => {
+        const config = loadConfig();
+        document.getElementById("cfg_url").value = config.mqtt.url;
+        document.getElementById("cfg_user").value = config.mqtt.username;
+        document.getElementById("cfg_pass").value = config.mqtt.password;
+        document.getElementById("cfg_topic").value = config.mqtt.topic;
+
+        renderDashboard();
+        if (config.mqtt.url) {
+          showPage("dash");
+          connect();
+        } else {
+          showPage("mqtt");
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+Макет Dashboard (Grid + Cards)
+
+Лучший паттерн — как Node-RED Dashboard / Home Assistant.
+
+Экран делится на сетку:
+
++--------------------------------+
+| Power      | Voltage | WiFi    |
+| 738 W      | 230 V   | -62dB   |
++------------+---------+---------+
+| Relay 1    | Current |         |
+|  [ ON ]    | 3.12 A  |         |
++--------------------------------+
+
+Каждая карточка:
+draggable
+resizable
+auto-reflow на мобильном

@@ -1,0 +1,11 @@
+{
+  "ts": 1736921123,
+  "uptime": 45231,
+  "voltage": 230.4,
+  "current": 3.12,
+  "power": 718.5,
+  "energy": 1.423,
+  "relay1": true,
+  "relay2": false,
+  "wifi_rssi": -61
+}

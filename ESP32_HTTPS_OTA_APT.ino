@@ -1299,10 +1299,19 @@ void handleSensors(){
   }
 
 }
+
+long getTimestamp() {
+  time_t now;
+  time(&now);
+  return now;
+}
+
 void sendMqttTelemetry() {
     StaticJsonDocument<1024> doc;
     
     // Берем данные из структуры data, а настройки (топики) из config
+    doc["ts"] = getTimestamp();
+    doc["uptime"] = millis()/1000;
     if (config.sensors.bme.enabled) {
       doc[config.sensors.bme.topics[0]] = data.bme.t;
       doc[config.sensors.bme.topics[1]] = data.bme.h;
@@ -1313,13 +1322,22 @@ void sendMqttTelemetry() {
       doc[config.sensors.dht.topics[1]] = data.dht.h;
     }
     if (config.sensors.ds.enabled) {
-      JsonArray ds = doc.createNestedArray("ds");
-      for(int i=0; i<4; i++) ds.add(data.ds.t[i]);
+      for(int i=0; i<4; i++) doc[config.sensors.relays.topics[i]] = data.ds.t[i];
     }
+
+
+
+
+      // JsonArray ds = doc.createNestedArray("ds");
+      // for(int i=0; i<4; i++) ds.add(data.ds.t[i]);
+    // }
     if (config.sensors.relays.enabled) {
-      JsonArray r = doc.createNestedArray("r");
-      for(int i=0; i<4; i++) r.add(data.relays[i]);
+      for(int i=0; i<4; i++) doc[config.sensors.ds.topics[i]] = data.ds.t[i];
     }
+
+      // JsonArray r = doc.createNestedArray("r");
+      // for(int i=0; i<4; i++) r.add(data.relays[i]);
+    // }
     
     char buffer[1024];
     serializeJson(doc, buffer);

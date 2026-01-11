@@ -1,0 +1,10 @@
+Типы карточек:
+
+Type	UI
+number	Большая цифра
+gauge	Полукруг
+switch	Toggle
+slider	Ползунок
+binary	ON / OFF
+text	Строка
+graph	мини-график
