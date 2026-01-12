@@ -477,15 +477,20 @@ void readSecuritySensors() {
     data.ds.t[1] = random(400, 600)/10.0; 
     data.ds.t[2] = random(400, 600)/10.0; 
     data.ds.t[3] = random(400, 600)/10.0; 
-  
-
-
-
-     
+   
     data.relays[0] = random(0, 10) > 7;
     data.relays[1] = random(0, 10) > 7;
     data.relays[2] = random(0, 10) > 7;
     data.relays[3] = random(0, 10) > 7;
+
+    data.tcrt.l = random(10, 1500);
+    data.lr.l = random(0, 100);
+
+    data.pir.motion = random(0, 10) > 7; 
+    data.ld.presence = random(0, 10) > 7; 
+    data.dr.open = random(0, 10) > 7; 
+    data.fl.flood = random(0, 10) > 7; 
+    data.rssi = WiFi.RSSI(); 
 
 
     // bool changed = false;
@@ -1307,11 +1312,11 @@ long getTimestamp() {
 }
 
 void sendMqttTelemetry() {
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<2048> doc;
     
     // Берем данные из структуры data, а настройки (топики) из config
     doc["ts"] = getTimestamp();
-    doc["uptime"] = millis()/1000;
+    doc["upt"] = millis()/1000;
     if (config.sensors.bme.enabled) {
       doc[config.sensors.bme.topics[0]] = data.bme.t;
       doc[config.sensors.bme.topics[1]] = data.bme.h;
@@ -1321,28 +1326,31 @@ void sendMqttTelemetry() {
       doc[config.sensors.dht.topics[0]] = data.dht.t;
       doc[config.sensors.dht.topics[1]] = data.dht.h;
     }
-    if (config.sensors.ds.enabled) {
-      for(int i=0; i<4; i++) doc[config.sensors.relays.topics[i]] = data.ds.t[i];
-    }
-
-
-
-
-      // JsonArray ds = doc.createNestedArray("ds");
-      // for(int i=0; i<4; i++) ds.add(data.ds.t[i]);
-    // }
-    if (config.sensors.relays.enabled) {
+    if (config.sensors.ds.enabled) 
       for(int i=0; i<4; i++) doc[config.sensors.ds.topics[i]] = data.ds.t[i];
-    }
 
-      // JsonArray r = doc.createNestedArray("r");
-      // for(int i=0; i<4; i++) r.add(data.relays[i]);
-    // }
+    if (config.sensors.relays.enabled) 
+      for(int i=0; i<4; i++) doc[config.sensors.relays.topics[i]] = data.relays[i];
     
-    char buffer[1024];
+    if (config.sensors.tcrt.enabled) 
+      doc[config.sensors.tcrt.topics[0]] = data.tcrt.l;
+    if (config.sensors.lr.enabled) 
+      doc[config.sensors.lr.topics[0]] = data.lr.l;
+    if (config.sensors.pir.enabled) 
+      doc[config.sensors.pir.topics[0]] = data.pir.motion;
+    if (config.sensors.ld.enabled) 
+      doc[config.sensors.ld.topics[0]] = data.ld.presence;
+    if (config.sensors.dr.enabled) 
+      doc[config.sensors.dr.topics[0]] = data.dr.open;
+    if (config.sensors.fl.enabled) 
+      doc[config.sensors.fl.topics[0]] = data.fl.flood;
+    doc["rssi"] = data.rssi;
+ 
+    
+    char buffer[2048];
     serializeJson(doc, buffer);
     mqttClient.publish(config.services.mqtt.base_topic, buffer);
-    //Serial.println("MQTT Data sent");
+    Serial.println(F("MQTT Data sent."));
 }
 void handleMQTT() {
   // if (!config.services.mqtt.enabled) return;

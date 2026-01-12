@@ -3,50 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pro MQTT Dashboard</title>
+    <title>MQTT Dashboard Constructor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
       :root {
-        --bg: #f4f7f6;
-        --card-bg: #ffffff;
+        --bg: #f0f2f5;
+        --card: #ffffff;
         --primary: #007bff;
+        --danger: #dc3545;
         --success: #28a745;
-        --text: #333;
-        --edit-bg: #fff9db;
+        --edit-bg: #fffbe6;
       }
 
       body {
         font-family: "Segoe UI", Tahoma, sans-serif;
         background: var(--bg);
         margin: 0;
-        color: var(--text);
+        color: #333;
       }
       nav {
-        background: #24292e;
+        background: #1a252f;
         padding: 10px;
         display: flex;
         gap: 15px;
         justify-content: center;
         position: sticky;
         top: 0;
-        z-index: 100;
+        z-index: 1000;
       }
       nav a {
-        color: #fafbfc;
+        color: #bdc3c7;
         text-decoration: none;
-        font-weight: 500;
         padding: 8px 16px;
-        border-radius: 6px;
+        border-radius: 5px;
         cursor: pointer;
+        font-weight: 600;
       }
       nav a.active {
         background: var(--primary);
+        color: white;
       }
 
       .container {
         max-width: 1400px;
         margin: 20px auto;
-        padding: 0 15px;
+        padding: 0 20px;
       }
       .page {
         display: none;
@@ -55,88 +56,103 @@
         display: block;
       }
 
-      .controls-bar {
+      /* Панель управления */
+      .toolbar {
         display: flex;
-        justify-content: flex-end;
-        margin-bottom: 15px;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       }
       .btn {
-        padding: 10px 20px;
-        border-radius: 8px;
+        padding: 10px 18px;
+        border-radius: 6px;
         border: none;
         cursor: pointer;
-        font-weight: 600;
+        font-weight: bold;
         transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
       }
       .btn-edit {
-        background: #ff9f43;
+        background: #6c757d;
         color: white;
       }
       .btn-edit.active {
         background: var(--success);
       }
-
-      /* Dashboard Grid */
-      .dashboard-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 15px;
+      .btn-add {
+        background: var(--primary);
+        color: white;
+        display: none;
+      }
+      .edit-mode-active .btn-add {
+        display: inline-flex;
       }
 
+      /* Сетка */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 20px;
+      }
+
+      /* Карточка */
       .card {
-        background: var(--card-bg);
+        background: var(--card);
         border-radius: 12px;
-        padding: 15px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        position: relative;
+        transition: 0.3s;
+        min-height: 180px;
         display: flex;
         flex-direction: column;
-        position: relative;
-        min-height: 140px;
       }
-      .edit-mode .card {
+      .edit-mode-active .card {
         background: var(--edit-bg);
-        outline: 2px dashed #f1c40f;
+        border: 2px dashed #ffe58f;
       }
 
-      .card-header {
+      /* Элементы карточки */
+      .card-head {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 8px;
-      }
-      .card-title {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #666;
-        text-transform: uppercase;
+        margin-bottom: 15px;
       }
       .card-icon {
-        font-size: 1.4rem;
+        font-size: 1.5rem;
       }
-
-      .card-body {
+      .card-title {
+        font-weight: bold;
+        color: #555;
+      }
+      .card-val-box {
         flex-grow: 1;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
+        flex-direction: column;
       }
       .card-value {
-        font-size: 1.8rem;
-        font-weight: 700;
+        font-size: 2.2rem;
+        font-weight: 800;
         color: var(--primary);
       }
       .card-unit {
-        font-size: 0.9rem;
         color: #999;
-        margin-top: 2px;
+        font-size: 1rem;
+        margin-left: 5px;
       }
 
-      /* Switch UI */
+      /* Переключатель */
       .switch {
         position: relative;
-        display: inline-block;
-        width: 48px;
+        width: 50px;
         height: 26px;
       }
       .switch input {
@@ -151,7 +167,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: #ccc;
+        background: #ccc;
         transition: 0.4s;
         border-radius: 34px;
       }
@@ -162,28 +178,28 @@
         width: 18px;
         left: 4px;
         bottom: 4px;
-        background-color: white;
+        background: white;
         transition: 0.4s;
         border-radius: 50%;
       }
       input:checked + .slider {
-        background-color: var(--success);
+        background: var(--success);
       }
       input:checked + .slider:before {
-        transform: translateX(22px);
+        transform: translateX(24px);
       }
 
-      /* Gauge UI */
-      .gauge-wrap {
+      /* Gauge */
+      .gauge-container {
         position: relative;
-        width: 100px;
-        height: 50px;
+        width: 120px;
+        height: 60px;
         overflow: hidden;
       }
-      .gauge-bg {
-        width: 100px;
-        height: 100px;
-        border: 10px solid #eee;
+      .gauge-arc {
+        width: 120px;
+        height: 120px;
+        border: 12px solid #eee;
         border-radius: 50%;
         box-sizing: border-box;
       }
@@ -191,63 +207,81 @@
         position: absolute;
         top: 0;
         left: 0;
-        width: 100px;
-        height: 100px;
-        border: 10px solid var(--primary);
+        width: 120px;
+        height: 120px;
+        border: 12px solid var(--primary);
+        border-radius: 50%;
         border-bottom-color: transparent;
         border-left-color: transparent;
-        border-radius: 50%;
-        box-sizing: border-box;
         transform: rotate(-45deg);
         transition: 0.5s;
+        box-sizing: border-box;
       }
 
-      /* Editor Overlays */
-      .edit-fields {
+      /* Форма редактирования внутри карточки */
+      .card-editor {
         display: none;
         position: absolute;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(255, 255, 255, 0.95);
+        background: white;
         z-index: 10;
         padding: 10px;
-        border-radius: 12px;
         box-sizing: border-box;
-        flex-direction: column;
-        gap: 4px;
+        border-radius: 12px;
         overflow-y: auto;
+        font-size: 0.8rem;
       }
-      .edit-mode .edit-fields {
+      .edit-mode-active .card-editor {
         display: flex;
+        flex-direction: column;
+        gap: 5px;
+        border: 1px solid #ddd;
       }
-      .edit-fields input,
-      .edit-fields select {
+      .card-editor input,
+      .card-editor select {
         padding: 4px;
-        font-size: 0.75rem;
         border: 1px solid #ddd;
         border-radius: 4px;
       }
+      .editor-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-top: auto;
+        padding-top: 5px;
+        border-top: 1px solid #eee;
+      }
+      .btn-del {
+        background: var(--danger);
+        color: white;
+        padding: 4px 8px;
+        font-size: 0.7rem;
+      }
+      .move-ctrls {
+        display: flex;
+        gap: 5px;
+      }
 
-      .settings-card {
+      /* Настройки MQTT */
+      .settings-form {
         background: white;
         padding: 30px;
         border-radius: 12px;
-        max-width: 600px;
+        max-width: 500px;
         margin: 0 auto;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       }
-      .form-item {
+      .form-group {
         margin-bottom: 15px;
       }
-      .form-item label {
+      .form-group label {
         display: block;
         margin-bottom: 5px;
         font-weight: bold;
-        font-size: 0.9rem;
       }
-      .form-item input {
+      .form-group input {
         width: 100%;
         padding: 10px;
         border: 1px solid #ddd;
@@ -256,46 +290,61 @@
       }
 
       pre {
-        background: #1e1e1e;
-        color: #a9dc76;
+        background: #2c3e50;
+        color: #2ecc71;
         padding: 15px;
         border-radius: 8px;
         overflow: auto;
-        font-size: 13px;
       }
     </style>
   </head>
   <body>
     <nav>
-      <a onclick="showP('dash')" id="nav-dash" class="active">Dashboard</a>
-      <a onclick="showP('mqtt')" id="nav-mqtt">MQTT Settings</a>
-      <a onclick="showP('raw')" id="nav-raw">Raw Data</a>
+      <a onclick="showPage('dash')" id="nav-dash" class="active">Dashboard</a>
+      <a onclick="showPage('mqtt')" id="nav-mqtt">MQTT Connection</a>
+      <a onclick="showPage('raw')" id="nav-raw">Raw Data</a>
     </nav>
 
     <div class="container">
-      <div id="p-dash" class="page active">
-        <div class="controls-bar">
-          <button class="btn btn-edit" id="btn-edit" onclick="toggleEdit()">
-            ✎ Настроить карточки
-          </button>
+      <div id="page-dash" class="page active">
+        <div class="toolbar">
+          <h2
+            id="dash-status"
+            style="margin: 0; font-size: 1.1rem; color: #7f8c8d"
+          >
+            Dashboard Constructor
+          </h2>
+          <div style="display: flex; gap: 10px">
+            <button class="btn btn-add" onclick="addCard()">
+              + Добавить карточку
+            </button>
+            <button
+              class="btn btn-edit"
+              id="edit-toggle"
+              onclick="toggleEditMode()"
+            >
+              ✎ Режим редактирования
+            </button>
+          </div>
         </div>
-        <div id="dashboard" class="dashboard-grid"></div>
+        <div id="dashboard-grid" class="grid"></div>
       </div>
 
-      <div id="p-mqtt" class="page">
-        <div class="settings-card">
-          <h2>Подключение к Брокеру</h2>
-          <div class="form-item">
-            <label>URL (wss://...)</label><input type="text" id="mq_url" />
+      <div id="page-mqtt" class="page">
+        <div class="settings-form">
+          <h2>Настройки Брокера</h2>
+          <div class="form-group">
+            <label>Broker URL (wss://...)</label
+            ><input type="text" id="mq_url" />
           </div>
-          <div class="form-item">
+          <div class="form-group">
             <label>Username</label><input type="text" id="mq_user" />
           </div>
-          <div class="form-item">
+          <div class="form-group">
             <label>Password</label><input type="password" id="mq_pass" />
           </div>
-          <div class="form-item">
-            <label>Main Topic</label
+          <div class="form-group">
+            <label>Topic Subscription</label
             ><input type="text" id="mq_topic" value="#" />
           </div>
           <button
@@ -308,259 +357,204 @@
         </div>
       </div>
 
-      <div id="p-raw" class="page">
-        <pre id="raw-stream">Ожидание данных...</pre>
+      <div id="page-raw" class="page">
+        <pre id="raw-log">Ожидание данных MQTT...</pre>
       </div>
     </div>
 
     <script>
-      const CONFIG_KEY = "mqtt-dashboard-config";
+      const STORAGE_KEY = "mqtt-dashboard-config";
       let client = null;
-      let isEdit = false;
+      let isEditMode = false;
 
-      // Конфигурация со ВСЕМИ параметрами из JSON
+      // 1. Работа с Конфигурацией (Source 2)
       function getInitialConfig() {
-        const params = {
-          bme_t: {
-            name: "BME Temp",
-            jsonKey: "/bme-t",
-            type: "number",
-            unit: "°C",
-            icon: "🌡️",
-          },
-          bme_h: {
-            name: "BME Hum",
-            jsonKey: "/bme-h",
-            type: "gauge",
-            unit: "%",
-            icon: "💧",
-          },
-          bme_p: {
-            name: "BME Press",
-            jsonKey: "/bme-p",
-            type: "number",
-            unit: "Pa",
-            icon: "⏲️",
-          },
-          dht_t: {
-            name: "DHT Temp",
-            jsonKey: "/dht-t",
-            type: "number",
-            unit: "°C",
-            icon: "🌡️",
-          },
-          dht_h: {
-            name: "DHT Hum",
-            jsonKey: "/dht-h",
-            type: "number",
-            unit: "%",
-            icon: "💧",
-          },
-          t1: {
-            name: "Sensor T1",
-            jsonKey: "/t1",
-            type: "number",
-            unit: "°C",
-            icon: "📍",
-          },
-          t2: {
-            name: "Sensor T2",
-            jsonKey: "/t2",
-            type: "number",
-            unit: "°C",
-            icon: "📍",
-          },
-          t3: {
-            name: "Sensor T3",
-            jsonKey: "/t3",
-            type: "number",
-            unit: "°C",
-            icon: "📍",
-          },
-          t4: {
-            name: "Sensor T4",
-            jsonKey: "/t4",
-            type: "number",
-            unit: "°C",
-            icon: "📍",
-          },
-          r0: {
-            name: "Реле 0",
-            jsonKey: "/r0",
-            type: "switch",
-            unit: "",
-            icon: "🔌",
-            controlTopic: "cmnd/relay0",
-          },
-          r1: {
-            name: "Реле 1",
-            jsonKey: "/r1",
-            type: "switch",
-            unit: "",
-            icon: "🔌",
-            controlTopic: "cmnd/relay1",
-          },
-          r2: {
-            name: "Реле 2",
-            jsonKey: "/r2",
-            type: "switch",
-            unit: "",
-            icon: "🔌",
-            controlTopic: "cmnd/relay2",
-          },
-          r3: {
-            name: "Реле 3",
-            jsonKey: "/r3",
-            type: "switch",
-            unit: "",
-            icon: "🔌",
-            controlTopic: "cmnd/relay3",
-          },
-          uptime: {
-            name: "Uptime",
-            jsonKey: "uptime",
-            type: "text",
-            unit: "s",
-            icon: "⏱️",
-          },
-        };
-
         return {
           mqtt: { url: "", username: "", password: "", topic: "#" },
-          parameters: params,
-          dashboard: {
-            layout: Object.keys(params).map((k) => ({
-              id: "c_" + k,
-              parameter: k,
-            })),
-          },
+          parameters: {}, // Все настройки параметров тут
+          dashboard: { layout: [] }, // Порядок карточек тут
         };
       }
 
-      function getConfig() {
-        const stored = localStorage.getItem(CONFIG_KEY);
-        return stored ? JSON.parse(stored) : getInitialConfig();
+      function loadConfig() {
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : getInitialConfig();
       }
 
       function saveConfig(cfg) {
-        localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
       }
 
-      // Рендеринг Dashboard
-      function render() {
-        const cfg = getConfig();
-        const grid = document.getElementById("dashboard");
-        grid.innerHTML = "";
-        grid.className = isEdit ? "dashboard-grid edit-mode" : "dashboard-grid";
+      // 2. Управление карточками (CRUD)
+      function addCard() {
+        const cfg = loadConfig();
+        const id = "p_" + Date.now();
 
-        cfg.dashboard.layout.forEach((item) => {
-          const p = cfg.parameters[item.parameter];
+        // Создаем параметр
+        cfg.parameters[id] = {
+          name: "Новый параметр",
+          jsonKey: "/temp",
+          type: "number",
+          unit: "°C",
+          icon: "📊",
+          controlTopic: "",
+        };
+
+        // Добавляем в лейаут
+        cfg.dashboard.layout.push({ id: id });
+
+        saveConfig(cfg);
+        renderDashboard();
+      }
+
+      function deleteCard(id) {
+        if (!confirm("Удалить эту карточку?")) return;
+        const cfg = loadConfig();
+
+        delete cfg.parameters[id];
+        cfg.dashboard.layout = cfg.dashboard.layout.filter(
+          (item) => item.id !== id
+        );
+
+        saveConfig(cfg);
+        renderDashboard();
+      }
+
+      function moveCard(index, direction) {
+        const cfg = loadConfig();
+        const layout = cfg.dashboard.layout;
+        const newIndex = index + direction;
+
+        if (newIndex >= 0 && newIndex < layout.length) {
+          [layout[index], layout[newIndex]] = [layout[newIndex], layout[index]];
+          saveConfig(cfg);
+          renderDashboard();
+        }
+      }
+
+      function updateParam(id, field, value) {
+        const cfg = loadConfig();
+        if (cfg.parameters[id]) {
+          cfg.parameters[id][field] = value;
+          saveConfig(cfg);
+          // Не рендерим сразу всё, чтобы не сбивать фокус ввода,
+          // но обновляем UI при выходе из режима или потере фокуса
+        }
+      }
+
+      // 3. Отрисовка
+      function renderDashboard() {
+        const cfg = loadConfig();
+        const container = document.getElementById("dashboard-grid");
+        container.innerHTML = "";
+
+        document.body.classList.toggle("edit-mode-active", isEditMode);
+
+        cfg.dashboard.layout.forEach((item, index) => {
+          const p = cfg.parameters[item.id];
           if (!p) return;
 
           const card = document.createElement("div");
           card.className = "card";
 
-          let bodyHtml = "";
+          let valUI = "";
           switch (p.type) {
             case "switch":
-              bodyHtml = `<label class="switch"><input type="checkbox" id="v-${p.jsonKey}" onchange="sendCmd('${item.parameter}', this.checked)"><span class="slider"></span></label>`;
+              valHtml = `<label class="switch"><input type="checkbox" id="v-${p.jsonKey}" onchange="sendMqtt('${item.id}', this.checked)"><span class="slider"></span></label>`;
               break;
             case "gauge":
-              bodyHtml = `<div class="gauge-wrap"><div class="gauge-bg"></div><div class="gauge-fill" id="g-${p.jsonKey}"></div><div style="position:absolute; bottom:0; width:100%; text-align:center; font-weight:bold" id="v-${p.jsonKey}">--</div></div>`;
+              valHtml = `<div class="gauge-container"><div class="gauge-arc"></div><div class="gauge-fill" id="g-${p.jsonKey}"></div><div style="position:absolute; bottom:0; width:100%; text-align:center; font-weight:bold" id="v-${p.jsonKey}">--</div></div>`;
               break;
             default:
-              bodyHtml = `<span class="card-value" id="v-${p.jsonKey}">--</span><span class="card-unit">${p.unit}</span>`;
+              valHtml = `<div class="card-val-box"><span class="card-value" id="v-${p.jsonKey}">--</span><span class="card-unit">${p.unit}</span></div>`;
           }
 
           card.innerHTML = `
-                <div class="card-header"><span class="card-title">${
+                <div class="card-head"><span class="card-title">${
                   p.name
                 }</span><span class="card-icon">${p.icon}</span></div>
-                <div class="card-body">${bodyHtml}</div>
-                <div class="edit-fields">
-                    <input type="text" value="${p.name}" onchange="updP('${
-            item.parameter
-          }','name',this.value)" placeholder="Имя">
-                    <input type="text" value="${p.icon}" onchange="updP('${
-            item.parameter
-          }','icon',this.value)" placeholder="Иконка">
-                    <input type="text" value="${p.unit}" onchange="updP('${
-            item.parameter
-          }','unit',this.value)" placeholder="Ед. изм.">
-                    <select onchange="updP('${
-                      item.parameter
-                    }','type',this.value)">
+                <div class="card-val-box">${valHtml}</div>
+                
+                <div class="card-editor">
+                    <label>Название:</label><input type="text" value="${
+                      p.name
+                    }" oninput="updateParam('${item.id}','name',this.value)">
+                    <label>JSON Key:</label><input type="text" value="${
+                      p.jsonKey
+                    }" oninput="updateParam('${item.id}','jsonKey',this.value)">
+                    <label>Иконка:</label><input type="text" value="${
+                      p.icon
+                    }" oninput="updateParam('${item.id}','icon',this.value)">
+                    <label>Ед. измерения:</label><input type="text" value="${
+                      p.unit
+                    }" oninput="updateParam('${item.id}','unit',this.value)">
+                    <label>Тип:</label>
+                    <select onchange="updateParam('${
+                      item.id
+                    }','type',this.value); renderDashboard();">
                         <option value="number" ${
                           p.type == "number" ? "selected" : ""
                         }>Number</option>
                         <option value="switch" ${
                           p.type == "switch" ? "selected" : ""
-                        }>Switch</option>
+                        }>Switch (Toggle)</option>
                         <option value="gauge" ${
                           p.type == "gauge" ? "selected" : ""
-                        }>Gauge</option>
+                        }>Gauge (Полукруг)</option>
                         <option value="text" ${
                           p.type == "text" ? "selected" : ""
                         }>Text</option>
                     </select>
                     ${
                       p.type === "switch"
-                        ? `<input type="text" value="${
+                        ? `<label>Control Topic:</label><input type="text" value="${
                             p.controlTopic || ""
-                          }" onchange="updP('${
-                            item.parameter
-                          }','controlTopic',this.value)" placeholder="Control Topic">`
+                          }" oninput="updateParam('${
+                            item.id
+                          }','controlTopic',this.value)">`
                         : ""
                     }
+                    
+                    <div class="editor-actions">
+                        <div class="move-ctrls">
+                            <button onclick="moveCard(${index}, -1)">←</button>
+                            <button onclick="moveCard(${index}, 1)">→</button>
+                        </div>
+                        <button class="btn btn-del" onclick="deleteCard('${
+                          item.id
+                        }')">Удалить карточку</button>
+                    </div>
                 </div>
             `;
-          grid.appendChild(card);
+          container.appendChild(card);
         });
       }
 
-      // Управление
-      function sendCmd(pId, state) {
-        const cfg = getConfig();
-        const p = cfg.parameters[pId];
-        if (client && p.controlTopic) {
-          const message = new Paho.MQTT.Message(state ? "1" : "0");
-          message.destinationName = p.controlTopic;
-          client.send(message);
-        }
-      }
-
-      function updP(pId, field, val) {
-        const cfg = getConfig();
-        cfg.parameters[pId][field] = val;
-        saveConfig(cfg);
-        render();
-      }
-
-      function toggleEdit() {
-        isEdit = !isEdit;
-        const btn = document.getElementById("btn-edit");
-        btn.innerText = isEdit
-          ? "✔ Сохранить изменения"
-          : "✎ Настроить карточки";
+      function toggleEditMode() {
+        isEditMode = !isEditMode;
+        const btn = document.getElementById("edit-toggle");
+        btn.innerText = isEditMode
+          ? "✔ Завершить настройку"
+          : "✎ Режим редактирования";
         btn.classList.toggle("active");
-        render();
+        renderDashboard();
       }
 
-      // MQTT
+      // 4. MQTT Логика
       function connect() {
-        const cfg = getConfig();
+        const cfg = loadConfig();
         if (!cfg.mqtt.url) return;
 
-        const urlParts = cfg.mqtt.url.replace("wss://", "").split(":");
+        const url = cfg.mqtt.url.replace("wss://", "").split(":");
         client = new Paho.MQTT.Client(
-          urlParts[0],
-          parseInt(urlParts[1]) || 8884,
-          "cl-" + Math.random().toString(16).slice(2, 6)
+          url[0],
+          parseInt(url[1]) || 8884,
+          "web-" + Math.random().toString(16).slice(2, 8)
         );
 
         client.onMessageArrived = (msg) => {
           const data = JSON.parse(msg.payloadString);
-          document.getElementById("raw-stream").innerText = JSON.stringify(
+          document.getElementById("raw-log").innerText = JSON.stringify(
             data,
             null,
             4
@@ -569,17 +563,18 @@
           Object.values(cfg.parameters).forEach((p) => {
             const val = data[p.jsonKey];
             if (val === undefined) return;
-            const el = document.getElementById(`v-${p.jsonKey}`);
-            if (!el) return;
 
-            if (p.type === "switch") {
-              el.checked = val > 0 || val === true;
-            } else if (p.type === "gauge") {
-              el.innerText = val;
-              const g = document.getElementById(`g-${p.jsonKey}`);
-              if (g) g.style.transform = `rotate(${(val / 100) * 180 - 45}deg)`;
+            const vEl = document.getElementById(`v-${p.jsonKey}`);
+            if (!vEl) return;
+
+            if (p.type === "switch") vEl.checked = val > 0 || val === true;
+            else if (p.type === "gauge") {
+              vEl.innerText = val;
+              const fill = document.getElementById(`g-${p.jsonKey}`);
+              if (fill)
+                fill.style.transform = `rotate(${(val / 100) * 180 - 45}deg)`;
             } else {
-              el.innerText = val;
+              vEl.innerText = val;
             }
           });
         };
@@ -588,39 +583,54 @@
           useSSL: true,
           userName: cfg.mqtt.username,
           password: cfg.mqtt.password,
-          onSuccess: () => client.subscribe(cfg.mqtt.topic),
-          onFailure: (e) => console.error(e),
+          onSuccess: () => {
+            document.getElementById("dash-status").innerText =
+              "Dashboard: Connected ✅";
+            client.subscribe(cfg.mqtt.topic);
+          },
         });
       }
 
-      function saveMqtt() {
-        const cfg = getConfig();
-        cfg.mqtt.url = document.getElementById("mq_url").value;
-        cfg.mqtt.username = document.getElementById("mq_user").value;
-        cfg.mqtt.password = document.getElementById("mq_pass").value;
-        cfg.mqtt.topic = document.getElementById("mq_topic").value;
-        saveConfig(cfg);
-        connect();
-        showP("dash");
+      function sendMqtt(pId, state) {
+        const cfg = loadConfig();
+        const p = cfg.parameters[pId];
+        if (client && p && p.controlTopic) {
+          const msg = new Paho.MQTT.Message(state ? "1" : "0");
+          msg.destinationName = p.controlTopic;
+          client.send(msg);
+        }
       }
 
-      function showP(id) {
+      // 5. Утилиты
+      function showPage(id) {
         document
           .querySelectorAll(".page")
           .forEach((p) => p.classList.remove("active"));
         document
           .querySelectorAll("nav a")
           .forEach((a) => a.classList.remove("active"));
-        document.getElementById("p-" + id).classList.add("active");
+        document.getElementById("page-" + id).classList.add("active");
         document.getElementById("nav-" + id).classList.add("active");
       }
 
+      function saveMqtt() {
+        const cfg = loadConfig();
+        cfg.mqtt.url = document.getElementById("mq_url").value;
+        cfg.mqtt.username = document.getElementById("mq_user").value;
+        cfg.mqtt.password = document.getElementById("mq_pass").value;
+        cfg.mqtt.topic = document.getElementById("mq_topic").value;
+        saveConfig(cfg);
+        connect();
+        showPage("dash");
+      }
+
       window.onload = () => {
-        const cfg = getConfig();
+        const cfg = loadConfig();
         document.getElementById("mq_url").value = cfg.mqtt.url;
         document.getElementById("mq_user").value = cfg.mqtt.username;
         document.getElementById("mq_pass").value = cfg.mqtt.password;
-        render();
+        document.getElementById("mq_topic").value = cfg.mqtt.topic;
+        renderDashboard();
         if (cfg.mqtt.url) connect();
       };
     </script>
