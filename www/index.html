@@ -2,42 +2,48 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MQTT Dashboard Constructor</title>
+    <title>MQTT Dashboard Constructor Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
     <style>
       :root {
-        --bg: #f0f2f5;
-        --card: #ffffff;
+        --bg: #f4f7f9;
+        --card-bg: #ffffff;
         --primary: #007bff;
-        --danger: #dc3545;
         --success: #28a745;
-        --edit-bg: #fffbe6;
+        --danger: #dc3545;
+        --text: #2d3436;
+        --border: #dfe6e9;
       }
 
+      * {
+        box-sizing: border-box;
+      }
       body {
-        font-family: "Segoe UI", Tahoma, sans-serif;
+        font-family: "Segoe UI", system-ui, sans-serif;
         background: var(--bg);
         margin: 0;
-        color: #333;
+        color: var(--text);
       }
+
       nav {
-        background: #1a252f;
-        padding: 10px;
+        background: #2c3e50;
+        padding: 12px;
         display: flex;
         gap: 15px;
         justify-content: center;
         position: sticky;
         top: 0;
         z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
       }
       nav a {
-        color: #bdc3c7;
+        color: #ecf0f1;
         text-decoration: none;
-        padding: 8px 16px;
-        border-radius: 5px;
-        cursor: pointer;
         font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: 0.2s;
       }
       nav a.active {
         background: var(--primary);
@@ -46,7 +52,7 @@
 
       .container {
         max-width: 1400px;
-        margin: 20px auto;
+        margin: 25px auto;
         padding: 0 20px;
       }
       .page {
@@ -56,169 +62,148 @@
         display: block;
       }
 
-      /* Панель управления */
       .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
         background: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--border);
+      }
+      .scanner-panel {
+        display: none;
+        background: #ebf5ff;
+        border: 2px dashed var(--primary);
         padding: 15px;
         border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        margin-top: 15px;
       }
-      .btn {
-        padding: 10px 18px;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        font-weight: bold;
-        transition: 0.2s;
+      .edit-mode-on .scanner-panel {
+        display: block;
+      }
+      .discovered-key {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-      }
-      .btn-edit {
-        background: #6c757d;
-        color: white;
-      }
-      .btn-edit.active {
-        background: var(--success);
-      }
-      .btn-add {
-        background: var(--primary);
-        color: white;
-        display: none;
-      }
-      .edit-mode-active .btn-add {
-        display: inline-flex;
+        background: white;
+        border: 1px solid #b2bec3;
+        padding: 6px 12px;
+        border-radius: 20px;
+        margin: 5px;
+        font-size: 13px;
+        gap: 10px;
       }
 
-      /* Сетка */
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 20px;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 25px;
+        width: 100%;
       }
 
-      /* Карточка */
+      /* КАРТОЧКА */
       .card {
-        background: var(--card);
-        border-radius: 12px;
+        background: var(--card-bg);
+        border-radius: 15px;
         padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         position: relative;
-        transition: 0.3s;
-        min-height: 180px;
+        min-height: 240px;
         display: flex;
         flex-direction: column;
+        border: 1px solid var(--border);
+        cursor: default;
+        transition: transform 0.2s, opacity 0.2s;
       }
-      .edit-mode-active .card {
-        background: var(--edit-bg);
-        border: 2px dashed #ffe58f;
+      .edit-mode-on .card {
+        border: 2px dashed #f1c40f;
+        background: #fffcf0;
+        cursor: move;
+      }
+      .card.dragging {
+        opacity: 0.5;
+        transform: scale(0.95);
       }
 
-      /* Элементы карточки */
-      .card-head {
+      .card-header {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 15px;
-      }
-      .card-icon {
-        font-size: 1.5rem;
+        align-items: flex-start;
+        margin-bottom: 10px;
+        pointer-events: none;
       }
       .card-title {
-        font-weight: bold;
-        color: #555;
+        font-weight: 700;
+        color: #636e72;
+        text-transform: uppercase;
+        font-size: 0.85rem;
       }
-      .card-val-box {
+      .card-icon {
+        font-size: 1.8rem;
+      }
+
+      .card-body {
         flex-grow: 1;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        flex-direction: column;
+        position: relative;
+        pointer-events: none;
+      }
+      .edit-mode-on .card-body {
+        pointer-events: none;
+      } /* Чтобы инпуты внутри не мешали drag */
+
+      /* Исправление кликабельности элементов в режиме редактирования */
+      .edit-mode-on .card-editor {
+        pointer-events: all;
       }
       .card-value {
         font-size: 2.2rem;
         font-weight: 800;
         color: var(--primary);
+        text-align: center;
       }
       .card-unit {
-        color: #999;
-        font-size: 1rem;
-        margin-left: 5px;
+        font-size: 1.1rem;
+        color: #b2bec3;
+        margin-top: 5px;
+        font-weight: 600;
       }
 
-      /* Переключатель */
-      .switch {
+      /* GAUGE */
+      .gauge-wrap {
         position: relative;
-        width: 50px;
-        height: 26px;
-      }
-      .switch input {
-        opacity: 0;
-        width: 0;
-        height: 0;
-      }
-      .slider {
-        position: absolute;
-        cursor: pointer;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: #ccc;
-        transition: 0.4s;
-        border-radius: 34px;
-      }
-      .slider:before {
-        position: absolute;
-        content: "";
-        height: 18px;
-        width: 18px;
-        left: 4px;
-        bottom: 4px;
-        background: white;
-        transition: 0.4s;
-        border-radius: 50%;
-      }
-      input:checked + .slider {
-        background: var(--success);
-      }
-      input:checked + .slider:before {
-        transform: translateX(24px);
-      }
-
-      /* Gauge */
-      .gauge-container {
-        position: relative;
-        width: 120px;
-        height: 60px;
+        width: 180px;
+        height: 90px;
+        background: #eee;
+        border-radius: 180px 180px 0 0;
         overflow: hidden;
-      }
-      .gauge-arc {
-        width: 120px;
-        height: 120px;
-        border: 12px solid #eee;
-        border-radius: 50%;
-        box-sizing: border-box;
+        margin-bottom: 10px;
       }
       .gauge-fill {
         position: absolute;
         top: 0;
         left: 0;
-        width: 120px;
-        height: 120px;
-        border: 12px solid var(--primary);
-        border-radius: 50%;
-        border-bottom-color: transparent;
-        border-left-color: transparent;
-        transform: rotate(-45deg);
-        transition: 0.5s;
-        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        background: var(--primary);
+        transform-origin: center bottom;
+        transform: rotate(-180deg);
+        transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .gauge-mask {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        right: 18px;
+        bottom: 0;
+        background: var(--card-bg);
+        border-radius: 160px 160px 0 0;
+        z-index: 3;
       }
 
-      /* Форма редактирования внутри карточки */
+      /* EDITOR */
       .card-editor {
         display: none;
         position: absolute;
@@ -227,381 +212,600 @@
         width: 100%;
         height: 100%;
         background: white;
+        padding: 15px;
+        border-radius: 15px;
         z-index: 10;
-        padding: 10px;
-        box-sizing: border-box;
-        border-radius: 12px;
         overflow-y: auto;
-        font-size: 0.8rem;
+        font-size: 11px;
       }
-      .edit-mode-active .card-editor {
+      .edit-mode-on .card-editor {
         display: flex;
         flex-direction: column;
         gap: 5px;
-        border: 1px solid #ddd;
+      }
+      .card-editor label {
+        font-weight: bold;
+        color: #7f8c8d;
       }
       .card-editor input,
       .card-editor select {
-        padding: 4px;
-        border: 1px solid #ddd;
+        padding: 5px;
+        border: 1px solid var(--border);
         border-radius: 4px;
+        width: 100%;
       }
-      .editor-actions {
-        display: flex;
-        justify-content: space-between;
-        margin-top: auto;
-        padding-top: 5px;
-        border-top: 1px solid #eee;
+
+      .btn {
+        border: none;
+        padding: 10px 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: white;
+      }
+      .btn-success {
+        background: var(--success);
+        color: white;
       }
       .btn-del {
         background: var(--danger);
         color: white;
-        padding: 4px 8px;
-        font-size: 0.7rem;
-      }
-      .move-ctrls {
-        display: flex;
-        gap: 5px;
+        margin-top: auto;
+        padding: 5px;
+        font-size: 10px;
       }
 
-      /* Настройки MQTT */
-      .settings-form {
-        background: white;
-        padding: 30px;
-        border-radius: 12px;
-        max-width: 500px;
-        margin: 0 auto;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      }
-      .form-group {
-        margin-bottom: 15px;
-      }
-      .form-group label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-      }
-      .form-group input {
+      .slider-ui {
         width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        box-sizing: border-box;
+        margin: 15px 0;
+        pointer-events: all;
       }
-
-      pre {
-        background: #2c3e50;
-        color: #2ecc71;
-        padding: 15px;
-        border-radius: 8px;
-        overflow: auto;
+      .switch {
+        position: relative;
+        width: 50px;
+        height: 26px;
+        pointer-events: all;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider-toggle {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #ced4da;
+        border-radius: 34px;
+        transition: 0.4s;
+      }
+      .slider-toggle:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 4px;
+        bottom: 4px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.4s;
+      }
+      input:checked + .slider-toggle {
+        background: var(--success);
+      }
+      input:checked + .slider-toggle:before {
+        transform: translateX(24px);
       }
     </style>
   </head>
   <body>
     <nav>
       <a onclick="showPage('dash')" id="nav-dash" class="active">Dashboard</a>
-      <a onclick="showPage('mqtt')" id="nav-mqtt">MQTT Connection</a>
-      <a onclick="showPage('raw')" id="nav-raw">Raw Data</a>
+      <a onclick="showPage('mqtt')" id="nav-mqtt">MQTT Settings</a>
+      <a onclick="showPage('raw')" id="nav-raw">Log</a>
     </nav>
 
     <div class="container">
       <div id="page-dash" class="page active">
         <div class="toolbar">
-          <h2
-            id="dash-status"
-            style="margin: 0; font-size: 1.1rem; color: #7f8c8d"
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
           >
-            Dashboard Constructor
-          </h2>
-          <div style="display: flex; gap: 10px">
-            <button class="btn btn-add" onclick="addCard()">
-              + Добавить карточку
-            </button>
-            <button
-              class="btn btn-edit"
-              id="edit-toggle"
-              onclick="toggleEditMode()"
-            >
-              ✎ Режим редактирования
-            </button>
+            <h2 style="margin: 0; font-size: 1.2rem">Constructor Mode</h2>
+            <div style="display: flex; gap: 12px">
+              <button
+                class="btn btn-primary"
+                id="manual-add"
+                style="display: none"
+                onclick="manualAdd()"
+              >
+                + Добавить вручную
+              </button>
+              <button
+                class="btn btn-primary"
+                id="edit-btn"
+                onclick="toggleEdit()"
+              >
+                ✎ Настроить
+              </button>
+            </div>
+          </div>
+          <div class="scanner-panel" id="scanner">
+            <div id="discovered-list">Ждем данных...</div>
           </div>
         </div>
-        <div id="dashboard-grid" class="grid"></div>
+        <div id="grid" class="grid"></div>
       </div>
 
       <div id="page-mqtt" class="page">
-        <div class="settings-form">
-          <h2>Настройки Брокера</h2>
-          <div class="form-group">
-            <label>Broker URL (wss://...)</label
-            ><input type="text" id="mq_url" />
-          </div>
-          <div class="form-group">
-            <label>Username</label><input type="text" id="mq_user" />
-          </div>
-          <div class="form-group">
-            <label>Password</label><input type="password" id="mq_pass" />
-          </div>
-          <div class="form-group">
-            <label>Topic Subscription</label
-            ><input type="text" id="mq_topic" value="#" />
-          </div>
+        <div
+          style="
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            margin: auto;
+          "
+        >
+          <h3>MQTT Connection</h3>
+          <input
+            type="text"
+            id="mq_url"
+            placeholder="wss://broker:port"
+            style="width: 100%; padding: 10px; margin-bottom: 10px"
+          />
+          <input
+            type="text"
+            id="mq_user"
+            placeholder="Username"
+            style="width: 100%; padding: 10px; margin-bottom: 10px"
+          />
+          <input
+            type="password"
+            id="mq_pass"
+            placeholder="Password"
+            style="width: 100%; padding: 10px; margin-bottom: 10px"
+          />
           <button
-            class="btn"
-            style="background: var(--primary); color: white; width: 100%"
+            class="btn btn-primary"
+            style="width: 100%"
             onclick="saveMqtt()"
           >
-            Сохранить и подключиться
+            Save & Connect
           </button>
         </div>
       </div>
-
       <div id="page-raw" class="page">
-        <pre id="raw-log">Ожидание данных MQTT...</pre>
+        <pre
+          id="raw-log"
+          style="
+            background: #1e1e1e;
+            color: #0f0;
+            padding: 20px;
+            border-radius: 12px;
+          "
+        ></pre>
       </div>
     </div>
 
     <script>
-      const STORAGE_KEY = "mqtt-dashboard-config";
+      const CONFIG_KEY = "mqtt-dashboard-config";
+      const EMOJIS = [
+        "🌡️",
+        "💧",
+        "⚡",
+        "💡",
+        "🚪",
+        "🔌",
+        "📊",
+        "🚨",
+        "🌟",
+        "🏃",
+        "📈",
+        "⏲️",
+      ];
       let client = null;
-      let isEditMode = false;
+      let isEdit = false;
+      let discoveredKeys = new Set();
+      let sliderTimers = {};
+      let lastKnownValues = {};
 
-      // 1. Работа с Конфигурацией (Source 2)
-      function getInitialConfig() {
-        return {
-          mqtt: { url: "", username: "", password: "", topic: "#" },
-          parameters: {}, // Все настройки параметров тут
-          dashboard: { layout: [] }, // Порядок карточек тут
-        };
-      }
-
-      function loadConfig() {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : getInitialConfig();
-      }
-
-      function saveConfig(cfg) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-      }
-
-      // 2. Управление карточками (CRUD)
-      function addCard() {
-        const cfg = loadConfig();
-        const id = "p_" + Date.now();
-
-        // Создаем параметр
-        cfg.parameters[id] = {
-          name: "Новый параметр",
-          jsonKey: "/temp",
-          type: "number",
-          unit: "°C",
-          icon: "📊",
-          controlTopic: "",
-        };
-
-        // Добавляем в лейаут
-        cfg.dashboard.layout.push({ id: id });
-
-        saveConfig(cfg);
-        renderDashboard();
-      }
-
-      function deleteCard(id) {
-        if (!confirm("Удалить эту карточку?")) return;
-        const cfg = loadConfig();
-
-        delete cfg.parameters[id];
-        cfg.dashboard.layout = cfg.dashboard.layout.filter(
-          (item) => item.id !== id
+      function loadCfg() {
+        return (
+          JSON.parse(localStorage.getItem(CONFIG_KEY)) || {
+            mqtt: {},
+            parameters: {},
+            dashboard: { layout: [] },
+          }
         );
-
-        saveConfig(cfg);
-        renderDashboard();
+      }
+      function saveCfg(c) {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
       }
 
-      function moveCard(index, direction) {
-        const cfg = loadConfig();
-        const layout = cfg.dashboard.layout;
-        const newIndex = index + direction;
+      // --- DRAG AND DROP LOGIC ---
+      let dragSrcId = null;
 
-        if (newIndex >= 0 && newIndex < layout.length) {
-          [layout[index], layout[newIndex]] = [layout[newIndex], layout[index]];
-          saveConfig(cfg);
-          renderDashboard();
+      function handleDragStart(e) {
+        if (!isEdit) return;
+        dragSrcId = this.getAttribute("data-id");
+        this.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      }
+
+      function handleDragOver(e) {
+        if (e.preventDefault) e.preventDefault();
+        return false;
+      }
+
+      function handleDrop(e) {
+        if (e.stopPropagation) e.stopPropagation();
+        const targetId = this.getAttribute("data-id");
+        if (dragSrcId !== targetId) {
+          const cfg = loadCfg();
+          const layout = cfg.dashboard.layout;
+          const srcIdx = layout.findIndex((i) => i.id === dragSrcId);
+          const targetIdx = layout.findIndex((i) => i.id === targetId);
+
+          const [movedItem] = layout.splice(srcIdx, 1);
+          layout.splice(targetIdx, 0, movedItem);
+
+          saveCfg(cfg);
+          render();
         }
+        return false;
       }
 
-      function updateParam(id, field, value) {
-        const cfg = loadConfig();
-        if (cfg.parameters[id]) {
-          cfg.parameters[id][field] = value;
-          saveConfig(cfg);
-          // Не рендерим сразу всё, чтобы не сбивать фокус ввода,
-          // но обновляем UI при выходе из режима или потере фокуса
-        }
+      function handleDragEnd() {
+        this.classList.remove("dragging");
+      }
+      // ----------------------------
+
+      function runScanner(data) {
+        const cfg = loadCfg();
+        const existingKeys = Object.values(cfg.parameters).map(
+          (p) => p.jsonKey
+        );
+        const list = document.getElementById("discovered-list");
+        Object.keys(data).forEach((key) => {
+          if (!existingKeys.includes(key) && !discoveredKeys.has(key)) {
+            if (list.innerHTML.includes("Ждем")) list.innerHTML = "";
+            const type =
+              typeof data[key] === "boolean" ||
+              data[key] === 0 ||
+              data[key] === 1
+                ? "binary"
+                : "number";
+            const badge = document.createElement("div");
+            badge.className = "discovered-key";
+            badge.innerHTML = `<span><b>${key}</b></span><button onclick="addFound('${key}', '${type}')" style="border:none; background:var(--success); color:white; border-radius:10px; cursor:pointer">+</button>`;
+            list.appendChild(badge);
+            discoveredKeys.add(key);
+          }
+        });
       }
 
-      // 3. Отрисовка
-      function renderDashboard() {
-        const cfg = loadConfig();
-        const container = document.getElementById("dashboard-grid");
-        container.innerHTML = "";
+      function addFound(key, type) {
+        const cfg = loadCfg();
+        const id = "id" + Date.now() + Math.floor(Math.random() * 100);
+        cfg.parameters[id] = {
+          name: key,
+          jsonKey: key,
+          type: type,
+          unit: "",
+          icon: "📊",
+          labelTrue: "ВКЛ",
+          labelFalse: "ВЫКЛ",
+          colorTrue: "#28a745",
+          colorFalse: "#dc3545",
+          min: 0,
+          max: 100,
+          step: 1,
+        };
+        cfg.dashboard.layout.push({ id: id });
+        saveCfg(cfg);
+        render();
+      }
 
-        document.body.classList.toggle("edit-mode-active", isEditMode);
+      function render() {
+        const cfg = loadCfg();
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
 
-        cfg.dashboard.layout.forEach((item, index) => {
+        document.body.classList.toggle("edit-mode-on", isEdit);
+        const eb = document.getElementById("edit-btn");
+        eb.innerText = isEdit ? "✔ Сохранить" : "✎ Настроить";
+        eb.className = isEdit ? "btn btn-success" : "btn btn-primary";
+        document.getElementById("manual-add").style.display = isEdit
+          ? "inline-block"
+          : "none";
+
+        cfg.dashboard.layout.forEach((item) => {
           const p = cfg.parameters[item.id];
           if (!p) return;
 
           const card = document.createElement("div");
           card.className = "card";
+          card.setAttribute("data-id", item.id);
+          if (isEdit) {
+            card.setAttribute("draggable", "true");
+            card.addEventListener("dragstart", handleDragStart);
+            card.addEventListener("dragover", handleDragOver);
+            card.addEventListener("drop", handleDrop);
+            card.addEventListener("dragend", handleDragEnd);
+          }
 
-          let valUI = "";
-          switch (p.type) {
-            case "switch":
-              valHtml = `<label class="switch"><input type="checkbox" id="v-${p.jsonKey}" onchange="sendMqtt('${item.id}', this.checked)"><span class="slider"></span></label>`;
-              break;
-            case "gauge":
-              valHtml = `<div class="gauge-container"><div class="gauge-arc"></div><div class="gauge-fill" id="g-${p.jsonKey}"></div><div style="position:absolute; bottom:0; width:100%; text-align:center; font-weight:bold" id="v-${p.jsonKey}">--</div></div>`;
-              break;
-            default:
-              valHtml = `<div class="card-val-box"><span class="card-value" id="v-${p.jsonKey}">--</span><span class="card-unit">${p.unit}</span></div>`;
+          let ui = "";
+          if (p.type === "switch") {
+            ui = `<label class="switch"><input type="checkbox" id="v-${item.id}" onchange="sendCmd('${item.id}', this.checked?1:0)"><span class="slider-toggle"></span></label>`;
+          } else if (p.type === "slider") {
+            ui = `<input type="range" class="slider-ui" min="${p.min}" max="${
+              p.max
+            }" step="${p.step}" oninput="handleSlider('${
+              item.id
+            }', this.value)" id="v-${item.id}"><div id="d-${
+              item.id
+            }" style="font-weight:700">${
+              lastKnownValues[p.jsonKey] || p.min
+            }</div>`;
+          } else if (p.type === "gauge") {
+            ui = `
+                    <div class="gauge-wrap">
+                        <div class="gauge-fill" id="g-${item.id}"></div>
+                        <div class="gauge-mask"></div>
+                    </div>
+                    <div class="card-value"><span id="v-${item.id}">--</span><span class="card-unit">${p.unit}</span></div>
+                `;
+          } else {
+            ui = `<div class="card-value"><span id="v-${item.id}">--</span><span class="card-unit">${p.unit}</span></div>`;
           }
 
           card.innerHTML = `
-                <div class="card-head"><span class="card-title">${
+                <div class="card-header"><span class="card-title">${
                   p.name
-                }</span><span class="card-icon">${p.icon}</span></div>
-                <div class="card-val-box">${valHtml}</div>
-                
+                }</span><span class="card-icon" id="icon-v-${item.id}">${
+            p.icon
+          }</span></div>
+                <div class="card-body">${ui}</div>
                 <div class="card-editor">
-                    <label>Название:</label><input type="text" value="${
+                    <label>Название</label><input type="text" value="${
                       p.name
-                    }" oninput="updateParam('${item.id}','name',this.value)">
-                    <label>JSON Key:</label><input type="text" value="${
+                    }" oninput="updP('${item.id}','name',this.value)">
+                    <label>JSON Key</label><input type="text" value="${
                       p.jsonKey
-                    }" oninput="updateParam('${item.id}','jsonKey',this.value)">
-                    <label>Иконка:</label><input type="text" value="${
-                      p.icon
-                    }" oninput="updateParam('${item.id}','icon',this.value)">
-                    <label>Ед. измерения:</label><input type="text" value="${
-                      p.unit
-                    }" oninput="updateParam('${item.id}','unit',this.value)">
-                    <label>Тип:</label>
-                    <select onchange="updateParam('${
+                    }" oninput="updP('${item.id}','jsonKey',this.value)">
+                    <label>Unit</label><input type="text" value="${
+                      p.unit || ""
+                    }" oninput="updP('${item.id}','unit',this.value)">
+                    
+                    <label>Иконка</label>
+                    <div style="display:flex; gap:4px">
+                        <select style="flex-grow:1" onchange="updP('${
+                          item.id
+                        }','icon',this.value); render();">
+                            <option value="">...</option>
+                            ${EMOJIS.map(
+                              (e) =>
+                                `<option value="${e}" ${
+                                  p.icon == e ? "selected" : ""
+                                }>${e}</option>`
+                            ).join("")}
+                        </select>
+                        <input type="text" value="${
+                          p.icon
+                        }" style="width:45px; text-align:center" oninput="updP('${
+            item.id
+          }','icon',this.value); document.getElementById('icon-v-${
+            item.id
+          }').innerText=this.value;">
+                    </div>
+
+                    <label>Тип</label>
+                    <select onchange="updP('${
                       item.id
-                    }','type',this.value); renderDashboard();">
+                    }','type',this.value); render();">
                         <option value="number" ${
                           p.type == "number" ? "selected" : ""
-                        }>Number</option>
-                        <option value="switch" ${
-                          p.type == "switch" ? "selected" : ""
-                        }>Switch (Toggle)</option>
+                        }>Число</option>
                         <option value="gauge" ${
                           p.type == "gauge" ? "selected" : ""
                         }>Gauge (Полукруг)</option>
-                        <option value="text" ${
-                          p.type == "text" ? "selected" : ""
-                        }>Text</option>
+                        <option value="binary" ${
+                          p.type == "binary" ? "selected" : ""
+                        }>Binary (Текст)</option>
+                        <option value="switch" ${
+                          p.type == "switch" ? "selected" : ""
+                        }>Switch</option>
+                        <option value="slider" ${
+                          p.type == "slider" ? "selected" : ""
+                        }>Slider</option>
                     </select>
+
                     ${
-                      p.type === "switch"
-                        ? `<label>Control Topic:</label><input type="text" value="${
+                      p.type === "gauge" || p.type === "slider"
+                        ? `
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px">
+                            <label>Min <input type="number" value="${p.min}" oninput="updP('${item.id}','min',this.value)"></label>
+                            <label>Max <input type="number" value="${p.max}" oninput="updP('${item.id}','max',this.value)"></label>
+                        </div>
+                    `
+                        : ""
+                    }
+
+                    ${
+                      p.type === "binary"
+                        ? `
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:5px">
+                            <label>Текст True <input type="text" value="${
+                              p.labelTrue
+                            }" oninput="updP('${
+                            item.id
+                          }','labelTrue',this.value)"></label>
+                            <label>Текст False <input type="text" value="${
+                              p.labelFalse
+                            }" oninput="updP('${
+                            item.id
+                          }','labelFalse',this.value)"></label>
+                            <label>Цвет True <input type="color" value="${
+                              p.colorTrue || "#28a745"
+                            }" oninput="updP('${
+                            item.id
+                          }','colorTrue',this.value)"></label>
+                            <label>Цвет False <input type="color" value="${
+                              p.colorFalse || "#dc3545"
+                            }" oninput="updP('${
+                            item.id
+                          }','colorFalse',this.value)"></label>
+                        </div>
+                    `
+                        : ""
+                    }
+
+                    ${
+                      p.type === "switch" || p.type === "slider"
+                        ? `<label>Control Topic</label><input type="text" value="${
                             p.controlTopic || ""
-                          }" oninput="updateParam('${
+                          }" oninput="updP('${
                             item.id
                           }','controlTopic',this.value)">`
                         : ""
                     }
                     
-                    <div class="editor-actions">
-                        <div class="move-ctrls">
-                            <button onclick="moveCard(${index}, -1)">←</button>
-                            <button onclick="moveCard(${index}, 1)">→</button>
-                        </div>
-                        <button class="btn btn-del" onclick="deleteCard('${
-                          item.id
-                        }')">Удалить карточку</button>
-                    </div>
+                    <button class="btn btn-del" onclick="deleteCard('${
+                      item.id
+                    }')">Удалить</button>
                 </div>
             `;
-          container.appendChild(card);
+          grid.appendChild(card);
+          if (lastKnownValues[p.jsonKey] !== undefined)
+            applyValueToUI(item.id, p, lastKnownValues[p.jsonKey]);
         });
       }
 
-      function toggleEditMode() {
-        isEditMode = !isEditMode;
-        const btn = document.getElementById("edit-toggle");
-        btn.innerText = isEditMode
-          ? "✔ Завершить настройку"
-          : "✎ Режим редактирования";
-        btn.classList.toggle("active");
-        renderDashboard();
+      function applyValueToUI(id, p, val) {
+        const el = document.getElementById(`v-${id}`);
+        if (
+          !el &&
+          p.type !== "gauge" &&
+          p.type !== "switch" &&
+          p.type !== "slider"
+        )
+          return;
+
+        if (p.type === "gauge") {
+          const txt = document.getElementById(`v-${id}`);
+          if (txt) txt.innerText = val;
+          const fill = document.getElementById(`g-${id}`);
+          if (fill) {
+            const percent = Math.min(
+              Math.max((parseFloat(val) - p.min) / (p.max - p.min), 0),
+              1
+            );
+            fill.style.transform = `rotate(${percent * 180 - 180}deg)`;
+          }
+        } else if (p.type === "switch") {
+          const sw = document.getElementById(`v-${id}`);
+          if (sw) sw.checked = val > 0 || val === true || val === "ON";
+        } else if (p.type === "binary") {
+          const isTrue = val > 0 || val === true || val === "ON";
+          el.innerText = isTrue ? p.labelTrue : p.labelFalse;
+          el.style.color = isTrue
+            ? p.colorTrue || "var(--success)"
+            : p.colorFalse || "var(--danger)";
+        } else if (p.type === "slider") {
+          const sl = document.getElementById(`v-${id}`);
+          if (sl) sl.value = val;
+          const d = document.getElementById(`d-${id}`);
+          if (d) d.innerText = val;
+        } else {
+          el.innerText = val;
+        }
       }
 
-      // 4. MQTT Логика
       function connect() {
-        const cfg = loadConfig();
+        const cfg = loadCfg();
         if (!cfg.mqtt.url) return;
-
-        const url = cfg.mqtt.url.replace("wss://", "").split(":");
+        const u = cfg.mqtt.url.replace("wss://", "").split(":");
         client = new Paho.MQTT.Client(
-          url[0],
-          parseInt(url[1]) || 8884,
-          "web-" + Math.random().toString(16).slice(2, 8)
+          u[0],
+          parseInt(u[1]) || 8884,
+          "cl-" + Math.random().toString(16).slice(2, 8)
         );
-
-        client.onMessageArrived = (msg) => {
-          const data = JSON.parse(msg.payloadString);
-          document.getElementById("raw-log").innerText = JSON.stringify(
-            data,
-            null,
-            4
-          );
-
-          Object.values(cfg.parameters).forEach((p) => {
-            const val = data[p.jsonKey];
-            if (val === undefined) return;
-
-            const vEl = document.getElementById(`v-${p.jsonKey}`);
-            if (!vEl) return;
-
-            if (p.type === "switch") vEl.checked = val > 0 || val === true;
-            else if (p.type === "gauge") {
-              vEl.innerText = val;
-              const fill = document.getElementById(`g-${p.jsonKey}`);
-              if (fill)
-                fill.style.transform = `rotate(${(val / 100) * 180 - 45}deg)`;
-            } else {
-              vEl.innerText = val;
-            }
-          });
+        client.onMessageArrived = (m) => {
+          try {
+            const data = JSON.parse(m.payloadString);
+            document.getElementById("raw-log").innerText = JSON.stringify(
+              data,
+              null,
+              2
+            );
+            runScanner(data);
+            const currentCfg = loadCfg();
+            currentCfg.dashboard.layout.forEach((item) => {
+              const p = currentCfg.parameters[item.id];
+              const val = data[p.jsonKey];
+              if (val !== undefined) {
+                lastKnownValues[p.jsonKey] = val;
+                applyValueToUI(item.id, p, val);
+              }
+            });
+          } catch (e) {}
         };
-
         client.connect({
           useSSL: true,
           userName: cfg.mqtt.username,
           password: cfg.mqtt.password,
-          onSuccess: () => {
-            document.getElementById("dash-status").innerText =
-              "Dashboard: Connected ✅";
-            client.subscribe(cfg.mqtt.topic);
-          },
+          onSuccess: () => client.subscribe("#"),
         });
       }
 
-      function sendMqtt(pId, state) {
-        const cfg = loadConfig();
-        const p = cfg.parameters[pId];
-        if (client && p && p.controlTopic) {
-          const msg = new Paho.MQTT.Message(state ? "1" : "0");
+      function handleSlider(id, val) {
+        document.getElementById(`d-${id}`).innerText = val;
+        clearTimeout(sliderTimers[id]);
+        sliderTimers[id] = setTimeout(() => sendCmd(id, val), 300);
+      }
+
+      function sendCmd(id, val) {
+        const cfg = loadCfg();
+        const p = cfg.parameters[id];
+        if (client && p.controlTopic) {
+          const msg = new Paho.MQTT.Message(String(val));
           msg.destinationName = p.controlTopic;
           client.send(msg);
         }
       }
 
-      // 5. Утилиты
+      function toggleEdit() {
+        isEdit = !isEdit;
+        render();
+      }
+      function updP(id, f, v) {
+        const c = loadCfg();
+        if (c.parameters[id]) {
+          c.parameters[id][f] = v;
+          saveCfg(c);
+        }
+      }
+      function deleteCard(id) {
+        const c = loadCfg();
+        delete c.parameters[id];
+        c.dashboard.layout = c.dashboard.layout.filter((i) => i.id !== id);
+        saveCfg(c);
+        render();
+      }
+      function manualAdd() {
+        addFound("new_param", "number");
+      }
       function showPage(id) {
         document
           .querySelectorAll(".page")
@@ -612,26 +816,18 @@
         document.getElementById("page-" + id).classList.add("active");
         document.getElementById("nav-" + id).classList.add("active");
       }
-
       function saveMqtt() {
-        const cfg = loadConfig();
-        cfg.mqtt.url = document.getElementById("mq_url").value;
-        cfg.mqtt.username = document.getElementById("mq_user").value;
-        cfg.mqtt.password = document.getElementById("mq_pass").value;
-        cfg.mqtt.topic = document.getElementById("mq_topic").value;
-        saveConfig(cfg);
+        const c = loadCfg();
+        c.mqtt.url = document.getElementById("mq_url").value;
+        c.mqtt.username = document.getElementById("mq_user").value;
+        c.mqtt.password = document.getElementById("mq_pass").value;
+        saveCfg(c);
         connect();
         showPage("dash");
       }
-
       window.onload = () => {
-        const cfg = loadConfig();
-        document.getElementById("mq_url").value = cfg.mqtt.url;
-        document.getElementById("mq_user").value = cfg.mqtt.username;
-        document.getElementById("mq_pass").value = cfg.mqtt.password;
-        document.getElementById("mq_topic").value = cfg.mqtt.topic;
-        renderDashboard();
-        if (cfg.mqtt.url) connect();
+        render();
+        connect();
       };
     </script>
   </body>
